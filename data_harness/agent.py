@@ -136,6 +136,7 @@ class _AgentBase:
         self._sql_engine_url: str | None = None
         self._exec_cache: Any = None
         self._mcp_clients: dict[str, Any] = {}
+        self._last_result: RunResult | None = None
 
     # ── construction helpers ────────────────────────────────────────────────
 
@@ -187,6 +188,15 @@ class _AgentBase:
     @property
     def last_run_file(self) -> str | None:
         return self._last_run_file
+
+    @property
+    def last_result(self) -> RunResult | None:
+        """`RunResult` for the most recent run, however it was executed.
+
+        Set by streamed runs and replay-cache hits too, neither of which
+        returns a result to the caller directly.
+        """
+        return self._last_result
 
     @property
     def exec_cache(self) -> Any:
@@ -478,6 +488,11 @@ class _AgentBase:
         return steps
 
     def _replay_result(self, text: str) -> RunResult:
+        result = self._build_replay_result(text)
+        self._last_result = result
+        return result
+
+    def _build_replay_result(self, text: str) -> RunResult:
         return RunResult(
             text=text,
             status="success",
@@ -603,6 +618,7 @@ class Agent(_AgentBase):
             user_message, run_id=str(uuid.uuid4()), session_id=None
         )
         self._last_run_file = harness.run_file
+        self._last_result = result
         self._record_replay(key, harness, result)
         return result
 
@@ -700,6 +716,7 @@ class AsyncAgent(_AgentBase):
             user_message, run_id=str(uuid.uuid4()), session_id=None
         )
         self._last_run_file = harness.run_file
+        self._last_result = result
         self._record_replay(key, harness, result)
         return result
 
@@ -721,7 +738,10 @@ class AsyncAgent(_AgentBase):
         message_stop, tool_result) following the Claude Agent SDK protocol.
 
         After the generator is exhausted, ``agent.last_harness.last_result``
-        holds the `RunResult` for the run, including token usage.
+        holds the `RunResult` for the run, including token usage. A replay-cache
+        hit yields the cached answer as a single synthetic text block and
+        reports zero usage, so a streaming caller sees the same answer a
+        non-streaming one would.
 
         Usage::
 
@@ -731,11 +751,23 @@ class AsyncAgent(_AgentBase):
                     if isinstance(event.delta, TextDelta):
                         print(event.delta.text, end="", flush=True)
         """
+        key = self._replay_key(user_message)
+        if key is not None:
+            cached = self._exec_cache.get(key)
+            if cached is not None:
+                result = await self._replay(cached)
+                for event in _synthetic_text_events(result.text):
+                    yield event
+                return
+
         harness = self._make_harness()
         self._last_harness = harness
         async for event in harness.run_stream(user_message):
             yield event
         self._last_run_file = harness.run_file
+        if harness.last_result is not None:
+            self._last_result = harness.last_result
+            self._record_replay(key, harness, harness.last_result)
 
     def _make_harness(
         self,
@@ -818,6 +850,7 @@ class _SessionBase:
         self._turns += result.turns
         self._agent._last_harness = self._harness  # type: ignore[attr-defined]
         self._agent._last_run_file = self._harness.run_file
+        self._agent._last_result = result
         return result
 
 
@@ -895,17 +928,54 @@ class AsyncAgentSession(_SessionBase):
     async def ask_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
         """Stream events for a follow-up turn.
 
-        After the generator is exhausted, ``session.harness.last_result`` holds
-        the `RunResult` for the turn, including token usage.
+        After the generator is exhausted, ``session.last_result`` holds the
+        `RunResult` for the turn, stamped with the session and run ids exactly
+        as a non-streamed turn would be.
         """
+        run_id = str(uuid.uuid4())
         async for event in self._harness.ask_stream(user_message):
             yield event
         result = self._harness.last_result
         if result is not None:
-            self._record(result)
+            self._record(self._harness._stamp(result, run_id, self._id))
         else:  # pragma: no cover - the loop always sets a result
             self._agent._last_harness = self._harness
             self._agent._last_run_file = self._harness.run_file
+
+
+def _synthetic_text_events(text: str) -> list[StreamEvent]:
+    """A minimal, well-formed event sequence carrying ``text`` and no usage.
+
+    Used when a streamed run is served from the replay cache: there is no
+    provider stream to relay, but a streaming caller still renders from
+    deltas, so it must receive the answer the same way.
+    """
+    from data_harness.providers.base import StopReason
+    from data_harness.streaming import (
+        ContentBlockDeltaEvent,
+        ContentBlockStartEvent,
+        ContentBlockStopEvent,
+        MessageDeltaEvent,
+        MessageStartEvent,
+        MessageStopEvent,
+        TextDelta,
+    )
+    from data_harness.types import TextBlock
+
+    return [
+        MessageStartEvent(),
+        ContentBlockStartEvent(index=0, content_block=TextBlock(text="")),
+        ContentBlockDeltaEvent(index=0, delta=TextDelta(text=text)),
+        ContentBlockStopEvent(index=0),
+        MessageDeltaEvent(
+            stop_reason=StopReason.END_TURN,
+            input_tokens=0,
+            output_tokens=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+        ),
+        MessageStopEvent(),
+    ]
 
 
 _EXPLAIN_TEMPLATE = """\

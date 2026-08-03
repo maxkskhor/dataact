@@ -117,15 +117,24 @@ class TestAgentSessionId:
         result = agent.run_result("q")
         assert result.session_id is None
 
-    def test_agent_has_no_last_result_attribute(self, tmp_path):
-        """Per plan: Agent should NOT grow last_result in this phase."""
+    def test_agent_records_last_result(self, tmp_path):
+        """`Agent` deliberately grew `last_result`.
+
+        It previously did not, on the grounds that `run_result` already
+        returns one. That stopped being sufficient once a run could be
+        streamed or served from the replay cache: neither hands the caller a
+        result, so there was no way to reach a streamed run's token usage.
+        """
         agent = Agent(
             adapter=FakeAdapter([make_text_response("hi")]),
             system="s",
             run_dir=str(tmp_path),
         )
-        agent.run_result("q")
-        assert not hasattr(agent, "last_result")
+        assert agent.last_result is None
+
+        returned = agent.run_result("q")
+
+        assert agent.last_result is returned
 
 
 # ---------------------------------------------------------------------------

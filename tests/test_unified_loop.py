@@ -14,12 +14,7 @@ import threading
 import pytest
 
 from data_harness.agent import Agent, AgentSession, AsyncAgent, AsyncAgentSession
-from data_harness.loop import (
-    AsyncHarness,
-    Harness,
-    as_async_adapter,
-    run_coroutine_blocking,
-)
+from data_harness.loop import AsyncHarness, Harness, run_coroutine_blocking
 from data_harness.providers.base import (
     AsyncProviderAdapter,
     NormalizedResponse,
@@ -251,11 +246,11 @@ async def test_stream_and_result_paths_agree(tmp_path):
     assert [m.role for m in streamed.messages] == [m.role for m in direct.messages]
 
 
-# ── the sync facade really is the async loop ────────────────────────────────
+# ── the two drivers agree ───────────────────────────────────────────────────
 
 
 def test_sync_and_async_harness_produce_identical_results(tmp_path):
-    """`Harness` holds no loop logic; it drives `AsyncHarness`."""
+    """Both drivers run the same `_plan` generator, so they must agree."""
 
     def script(cls):
         return [
@@ -561,28 +556,6 @@ def test_both_drivers_carry_the_loop_state(attribute, tmp_path):
     )
     assert hasattr(sync, attribute)
     assert hasattr(asynchronous, attribute)
-
-
-# ── adapter bridging ────────────────────────────────────────────────────────
-
-
-def test_as_async_adapter_passes_async_adapters_through():
-    adapter = FakeAsyncAdapter([])
-    assert as_async_adapter(adapter) is adapter
-
-
-def test_as_async_adapter_wraps_sync_adapters():
-    bridged = as_async_adapter(FakeAdapter([]))
-    assert isinstance(bridged, AsyncProviderAdapter)
-    assert not isinstance(bridged, ProviderAdapter)
-
-
-def test_bridge_forwards_cache_control():
-    bridged = as_async_adapter(FakeAdapter([]))
-    assert bridged.format_cache_control({"type": "text"}) == {
-        "type": "text",
-        "cache_control": {"type": "ephemeral"},
-    }
 
 
 # ── features that only Agent used to have, now on AsyncAgent ────────────────

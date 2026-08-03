@@ -2,15 +2,24 @@
 
 There is exactly one loop implementation: `_HarnessBase._plan`. It is a
 generator that owns every decision in a turn (reminders, message assembly,
-tool gating, logging, when to stop, what the `RunResult` says) and performs no
-I/O itself. Instead it *asks* for I/O by yielding an effect:
+tool gating, when to stop, what the `RunResult` says) and does no *network*
+I/O itself. Instead it asks for it by yielding an effect:
 
-- `CallProvider` — run one provider turn, send back a `NormalizedResponse`
-- `CallTool` — invoke one tool handler, send back its return value
+- `CallProvider` — run one provider turn
+- `CallTool` — invoke one tool handler
 - `ToolFinished` — a tool result block is ready, emit an event if you want one
 
-Either failure is sent back in as `Failed(exc)`; the loop decides what that
-means. Two drivers perform those effects:
+The driver answers `CallProvider` and `CallTool` with `Ok(value)` or
+`Failed(exc)`; the loop, not the driver, decides what a failure means. The
+wrapper matters: without it a handler that legitimately returned a `Failed`
+would be mistaken for one that raised.
+
+Turn logging is the one effect not modelled as an effect: `_plan` writes JSONL
+to disk directly. That is a deliberate leftover, and it is why the "no I/O"
+claim above is scoped to the network. Phase 3 replaces the log with a session
+store and the write moves behind an interface.
+
+Two drivers perform the effects:
 
 - `Harness` runs everything inline on the calling thread. No event loop is
   created, so `KeyboardInterrupt` interrupts promptly, handlers keep their
@@ -32,6 +41,7 @@ import dataclasses
 import functools
 import warnings
 from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
+from contextlib import aclosing
 from dataclasses import dataclass
 from typing import Any, Literal, TypeVar, cast
 
@@ -73,7 +83,7 @@ _T = TypeVar("_T")
 
 @dataclass(frozen=True)
 class CallProvider:
-    """Run one provider turn. Send back a `NormalizedResponse` or `Failed`."""
+    """Run one provider turn. Answer with `Ok(NormalizedResponse)` or `Failed`."""
 
     system: str
     messages: list[Message]
@@ -82,7 +92,7 @@ class CallProvider:
 
 @dataclass(frozen=True)
 class CallTool:
-    """Invoke one tool handler. Send back its return value or `Failed`."""
+    """Invoke one tool handler. Answer with `Ok(return_value)` or `Failed`."""
 
     tool_use_id: str
     tool_name: str
@@ -92,7 +102,7 @@ class CallTool:
 
 @dataclass(frozen=True)
 class ToolFinished:
-    """A tool result block is ready. Send back ``None``.
+    """A tool result block is ready. Answer with ``None``.
 
     Emitted for every result, including tool-not-found and gate-blocked calls,
     so a streaming driver can surface them all.
@@ -103,6 +113,17 @@ class ToolFinished:
 
 
 @dataclass(frozen=True)
+class Ok:
+    """An effect succeeded, carrying whatever it produced.
+
+    Successes are wrapped rather than sent raw so that no possible return
+    value can be confused with a `Failed`.
+    """
+
+    value: Any
+
+
+@dataclass(frozen=True)
 class Failed:
     """An effect raised. The loop, not the driver, decides what that means."""
 
@@ -110,6 +131,7 @@ class Failed:
 
 
 Effect = CallProvider | CallTool | ToolFinished
+Answer = Ok | Failed | None
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
@@ -137,8 +159,19 @@ def _evaluate_code_gate(
 
 
 def _ambient_event_loop() -> asyncio.AbstractEventLoop | None:
-    """The loop installed on this thread, without installing one as a side effect."""
-    with warnings.catch_warnings():
+    """The loop already installed on this thread, or ``None``.
+
+    Must not install one as a side effect: on Python 3.10 and 3.11
+    ``get_event_loop()`` *creates* a loop when none is set, which would leave
+    a never-run, never-closed loop (and its selector fd) behind on a thread
+    that only ever used the synchronous API. The policy's private slot is the
+    only way to look without touching.
+    """
+    policy = asyncio.get_event_loop_policy()
+    watcher = getattr(policy, "_local", None)
+    if watcher is not None:
+        return getattr(watcher, "_loop", None)
+    with warnings.catch_warnings():  # pragma: no cover - non-default policy
         warnings.simplefilter("ignore", DeprecationWarning)
         try:
             return asyncio.get_event_loop_policy().get_event_loop()
@@ -175,44 +208,6 @@ def run_coroutine_blocking(coro: Coroutine[Any, Any, _T]) -> _T:
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         return pool.submit(asyncio.run, coro).result()
-
-
-class _SyncAdapterBridge(AsyncProviderAdapter):
-    """Presents a synchronous `ProviderAdapter` as an `AsyncProviderAdapter`.
-
-    The wrapped call is made inline, so it *blocks the event loop it runs on*
-    for the duration of the provider request. That is fine on a loop created
-    solely to drive one run, and wrong on a shared application loop. Prefer a
-    real async adapter anywhere concurrency matters.
-    """
-
-    def __init__(self, adapter: ProviderAdapter) -> None:
-        self._adapter = adapter
-
-    async def chat(
-        self,
-        system: str,
-        messages: list[Message],
-        tools: list[ToolSpec],
-    ) -> NormalizedResponse:
-        return self._adapter.chat(system=system, messages=messages, tools=tools)
-
-    def format_cache_control(self, obj: dict) -> dict:
-        return self._adapter.format_cache_control(obj)
-
-
-def as_async_adapter(
-    adapter: ProviderAdapter | AsyncProviderAdapter,
-) -> AsyncProviderAdapter:
-    """Return ``adapter`` as an async adapter, bridging a synchronous one.
-
-    The bridge blocks its event loop during provider calls; see
-    `_SyncAdapterBridge`. Pass an adapter that is already async when the loop
-    is shared with anything else.
-    """
-    if isinstance(adapter, AsyncProviderAdapter):
-        return adapter
-    return _SyncAdapterBridge(adapter)
 
 
 # ── the loop ────────────────────────────────────────────────────────────────
@@ -372,7 +367,7 @@ class _HarnessBase:
                 )
                 return
 
-            response: NormalizedResponse = outcome
+            response: NormalizedResponse = outcome.value
             latency = tb.elapsed_ms
 
             total_usage = total_usage + Usage(
@@ -468,20 +463,20 @@ class _HarnessBase:
                     )
                     continue
 
-            raw = yield CallTool(
+            answer = yield CallTool(
                 tool_use_id=tub.tool_use_id,
                 tool_name=tub.tool_name,
                 handler=spec.handler,
                 tool_input=tub.tool_input,
             )
 
-            if isinstance(raw, Failed):
+            if isinstance(answer, Failed):
                 finished.append(
                     (
                         tub.tool_name,
                         ToolResultBlock(
                             tool_use_id=tub.tool_use_id,
-                            content=repr(raw.error),
+                            content=repr(answer.error),
                             is_error=True,
                         ),
                     )
@@ -489,7 +484,7 @@ class _HarnessBase:
                 continue
 
             try:
-                output = format_tool_output(raw, cache=self._cache)
+                output = format_tool_output(answer.value, cache=self._cache)
             except Exception as exc:  # noqa: BLE001 - surfaced to the model
                 finished.append(
                     (
@@ -712,7 +707,7 @@ class Harness(_HarnessBase):
 
     def _drive(self) -> RunResult:
         plan = self._plan()
-        sent: Any = None
+        sent: Answer = None
         while True:
             try:
                 effect = plan.send(sent)
@@ -724,19 +719,21 @@ class Harness(_HarnessBase):
             raise RuntimeError("loop finished without producing a result")
         return result
 
-    def _perform(self, effect: Effect) -> Any:
+    def _perform(self, effect: Effect) -> Answer:
         if isinstance(effect, CallProvider):
             try:
-                return self._adapter.chat(
-                    system=effect.system,
-                    messages=effect.messages,
-                    tools=effect.tools,
+                return Ok(
+                    self._adapter.chat(
+                        system=effect.system,
+                        messages=effect.messages,
+                        tools=effect.tools,
+                    )
                 )
             except Exception as exc:  # noqa: BLE001 - reported as a RunResult
                 return Failed(exc)
         if isinstance(effect, CallTool):
             try:
-                return self._call_tool(effect)
+                return Ok(self._call_tool(effect))
             except Exception as exc:  # noqa: BLE001 - surfaced to the model
                 return Failed(exc)
         return None
@@ -839,8 +836,12 @@ class AsyncHarness(_HarnessBase):
         generator early leaves `last_result` unset.
         """
         self._begin_run(user_message)
-        async for event in self._drive(stream=True):
-            yield event
+        # `aclosing` matters: a bare `async for` does not close its iterator,
+        # so a consumer that stops early would leave the driver (and through
+        # it the provider's HTTP stream) suspended until the GC got to it.
+        async with aclosing(self._drive(stream=True)) as events:
+            async for event in events:
+                yield event
 
     async def ask_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
         """Stream events for a follow-up turn in a session.
@@ -848,69 +849,94 @@ class AsyncHarness(_HarnessBase):
         Once the generator is exhausted, `last_result` holds the `RunResult`.
         """
         self._begin_ask(user_message)
-        async for event in self._drive(stream=True):
-            yield event
+        async with aclosing(self._drive(stream=True)) as events:
+            async for event in events:
+                yield event
 
     # ── driver ──────────────────────────────────────────────────────────────
 
     async def _drain(self, *, stream: bool) -> RunResult:
-        async for _ in self._drive(stream=stream):
-            pass
+        async with aclosing(self._drive(stream=stream)) as events:
+            async for _ in events:
+                pass
         result = self._last_result
         if result is None:  # pragma: no cover - _plan always sets a result
             raise RuntimeError("loop finished without producing a result")
         return result
 
     async def _drive(self, *, stream: bool) -> AsyncGenerator[StreamEvent, None]:
-        plan = self._plan()
-        sent: Any = None
-        while True:
-            try:
-                effect = plan.send(sent)
-            except StopIteration:
-                return
-            sent = None
+        """Perform the loop's effects.
 
-            if isinstance(effect, CallProvider):
-                if stream:
-                    events: list[StreamEvent] = []
-                    try:
-                        async for evt in self._adapter.stream_events(
-                            system=effect.system,
-                            messages=effect.messages,
-                            tools=effect.tools,
-                        ):
-                            events.append(evt)
-                            yield evt
-                        # Inside the try on purpose: a malformed event stream is
-                        # a provider failure, and should land in the RunResult
-                        # rather than escape the loop.
-                        sent = accumulate_stream_events(events)
-                    except Exception as exc:  # noqa: BLE001 - reported as a RunResult
-                        sent = Failed(exc)
-                else:
-                    try:
-                        sent = await self._adapter.chat(
+        Deliberately one generator rather than a stack of them: a generator can
+        only clean up the resources held in its *own* frame when
+        `GeneratorExit` arrives, and an intermediate layer would have to be
+        closed explicitly by the layer above it. Keeping the provider stream,
+        the plan, and the yields together means one unwind closes everything.
+        """
+        plan = self._plan()
+        sent: Answer = None
+        try:
+            while True:
+                try:
+                    effect = plan.send(sent)
+                except StopIteration:
+                    return
+                sent = None
+
+                if isinstance(effect, CallProvider):
+                    if stream:
+                        events: list[StreamEvent] = []
+                        provider = self._adapter.stream_events(
                             system=effect.system,
                             messages=effect.messages,
                             tools=effect.tools,
                         )
-                    except Exception as exc:  # noqa: BLE001 - reported as a RunResult
+                        try:
+                            async for evt in provider:
+                                events.append(evt)
+                                yield evt
+                            # Inside the try on purpose: a failure while
+                            # assembling the turn is a provider failure, and
+                            # should land in the RunResult rather than escape
+                            # into the caller's loop.
+                            sent = Ok(accumulate_stream_events(events))
+                        except Exception as exc:  # noqa: BLE001 - reported as a RunResult
+                            sent = Failed(exc)
+                        finally:
+                            # A consumer that stops early unwinds through here
+                            # via GeneratorExit. Close the provider's generator
+                            # now so a real HTTP stream releases its connection
+                            # rather than waiting for the GC.
+                            aclose = getattr(provider, "aclose", None)
+                            if aclose is not None:
+                                await aclose()
+                    else:
+                        try:
+                            sent = Ok(
+                                await self._adapter.chat(
+                                    system=effect.system,
+                                    messages=effect.messages,
+                                    tools=effect.tools,
+                                )
+                            )
+                        except Exception as exc:  # noqa: BLE001 - reported as a RunResult
+                            sent = Failed(exc)
+
+                elif isinstance(effect, CallTool):
+                    try:
+                        sent = Ok(await self._call_tool(effect))
+                    except Exception as exc:  # noqa: BLE001 - surfaced to the model
                         sent = Failed(exc)
 
-            elif isinstance(effect, CallTool):
-                try:
-                    sent = await self._call_tool(effect)
-                except Exception as exc:  # noqa: BLE001 - surfaced to the model
-                    sent = Failed(exc)
-
-            elif isinstance(effect, ToolFinished) and stream:
-                yield ToolResultEvent(
-                    tool_use_id=effect.block.tool_use_id,
-                    tool_name=effect.tool_name,
-                    content=effect.block.content,
-                    is_error=effect.block.is_error,
-                )
+                elif isinstance(effect, ToolFinished) and stream:
+                    yield ToolResultEvent(
+                        tool_use_id=effect.block.tool_use_id,
+                        tool_name=effect.tool_name,
+                        content=effect.block.content,
+                        is_error=effect.block.is_error,
+                    )
+        finally:
+            plan.close()
 
     async def _call_tool(self, call: CallTool) -> Any:
         """Invoke one tool handler without stalling the event loop.
@@ -940,13 +966,14 @@ def _extract_text(response: NormalizedResponse) -> str:
 
 
 __all__ = [
+    "Answer",
     "AsyncHarness",
     "CallProvider",
     "CallTool",
     "Effect",
     "Failed",
     "Harness",
+    "Ok",
     "ToolFinished",
-    "as_async_adapter",
     "run_coroutine_blocking",
 ]
