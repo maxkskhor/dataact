@@ -199,7 +199,7 @@ async def test_async_harness_raising_handler_is_error(tmp_path):
     # Inspect the tool result in the message history
     from data_harness.types import ToolResultBlock
 
-    for msg in reversed(harness._messages):
+    for msg in reversed(harness.messages):
         if msg.role == "user":
             tool_results = [b for b in msg.content if isinstance(b, ToolResultBlock)]
             if tool_results:

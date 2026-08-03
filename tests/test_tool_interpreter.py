@@ -75,7 +75,7 @@ def _run_interpreter_via_harness(
     harness = Harness(adapter=adapter, system="sys", tools=[spec], cache=cache)
     harness.run("go")
     # The tool result is the second-to-last message (user message with tool result)
-    for msg in reversed(harness._messages):
+    for msg in reversed(harness.messages):
         if msg.role == "user":
             for block in msg.content:
                 if isinstance(block, ToolResultBlock):

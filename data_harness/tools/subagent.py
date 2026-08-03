@@ -5,7 +5,7 @@ import dataclasses
 from typing import Callable
 
 from data_harness.cache import SessionCache
-from data_harness.providers.base import ProviderAdapter
+from data_harness.providers.base import AsyncProviderAdapter, ProviderAdapter
 from data_harness.tools.interpreter import PythonInterpreter
 from data_harness.tools.variables import make_list_variables_spec
 from data_harness.types import ToolSpec
@@ -25,7 +25,7 @@ findings. If you save artifacts, mention what they contain and why they matter."
 
 
 def make_subagent_spec(
-    adapter_factory: Callable[[], ProviderAdapter],
+    adapter_factory: Callable[[], ProviderAdapter | AsyncProviderAdapter],
     parent_tools: list[ToolSpec],
     parent_cache: SessionCache,
     run_dir: str = "./runs",
@@ -33,6 +33,11 @@ def make_subagent_spec(
     make_sub_tools: Callable[[SessionCache], list[ToolSpec]] | None = None,
 ) -> ToolSpec:
     """Create a subagent tool with an explicit cache boundary.
+
+    ``adapter_factory`` may return either a `ProviderAdapter` or an
+    `AsyncProviderAdapter`; a synchronous one is bridged onto the async loop.
+    The tool handler itself stays synchronous, so it works identically whether
+    the parent is an `Agent` or an `AsyncAgent`.
 
     If parent_tools include cache-bound wrappers such as ConnectorRegistry
     wrapped specs, pass make_sub_tools so those handlers can be rebuilt against
@@ -45,7 +50,11 @@ def make_subagent_spec(
         input_handles: list[str] | None = None,
         output_policy: str = "text_only",
     ) -> str:
-        from data_harness.loop import Harness
+        from data_harness.loop import (
+            AsyncHarness,
+            as_async_adapter,
+            run_coroutine_blocking,
+        )
 
         # Validate input_handles against parent cache
         if input_handles:
@@ -95,10 +104,8 @@ def make_subagent_spec(
         system = _WORKER_SYSTEM_TEMPLATE.format(task=task, input_handles=handles_str)
 
         # Spawn fresh adapter
-        sub_adapter = adapter_factory()
-
-        sub_harness = Harness(
-            adapter=sub_adapter,
+        sub_harness = AsyncHarness(
+            adapter=as_async_adapter(adapter_factory()),
             system=system,
             tools=sub_tools,
             run_dir=run_dir,
@@ -106,7 +113,7 @@ def make_subagent_spec(
         )
 
         try:
-            final_text = sub_harness.run(task)
+            final_text = run_coroutine_blocking(sub_harness.run(task))
         except Exception as exc:
             return f"Error: subagent failed: {type(exc).__name__}: {exc}"
 

@@ -75,7 +75,7 @@ def _latest_jsonl(run_dir: Path) -> list[dict]:
 
 def _all_text_from_messages(harness: Harness) -> str:
     parts: list[str] = []
-    for message in harness._messages:
+    for message in harness.messages:
         for block in message.content:
             text = getattr(block, "text", None) or getattr(block, "content", None)
             if text:

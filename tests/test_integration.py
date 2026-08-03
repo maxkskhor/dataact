@@ -179,10 +179,10 @@ class TestIntegrationFlow:
         assert len(set(systems)) == 1
 
         # Invariant 5: cache_control only in adapter-bound payloads, not harness objects
-        for msg in harness._messages:
+        for msg in harness.messages:
             for block in msg.content:
                 assert not hasattr(block, "cache_control")
-        for tool in harness._tools:
+        for tool in harness.tools:
             assert not hasattr(tool, "cache_control")
 
     def test_tool_use_ordering_invariant(self, tmp_path):

@@ -55,7 +55,7 @@ def test_code_only_dry_run(tmp_path):
     res = agent.run_result("sum")
     assert res.value is None
     # the interpreter result echoed the code rather than running it
-    last_user = agent.last_harness._messages[-2]
+    last_user = agent.last_harness.messages[-2]
     contents = " ".join(b.content for b in last_user.content if hasattr(b, "content"))
     assert "DRY RUN" in contents
 

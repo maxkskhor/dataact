@@ -12,6 +12,7 @@ pandasai-style wrapper over a single frame. Neither mutates global state.
 from __future__ import annotations
 
 import dataclasses
+import importlib
 import importlib.util
 import os
 from collections.abc import Callable
@@ -22,7 +23,7 @@ from data_harness.io import to_handles
 from data_harness.result import RunResult
 
 if TYPE_CHECKING:
-    from data_harness.providers.base import ProviderAdapter
+    from data_harness.providers.base import AsyncProviderAdapter, ProviderAdapter
 
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
@@ -52,6 +53,72 @@ def _is_openai_model(model: str) -> bool:
     return model.lower().startswith(_OPENAI_PREFIXES)
 
 
+#: provider key -> (sync class, async class, name of the extra that supplies it)
+_ADAPTER_CLASSES: dict[str, tuple[str, str, str | None]] = {
+    "anthropic": ("AnthropicAdapter", "AsyncAnthropicAdapter", None),
+    "openai": ("OpenAIAdapter", "AsyncOpenAIAdapter", "openai"),
+    "openrouter": ("OpenRouterAdapter", "AsyncOpenRouterAdapter", "openai"),
+    "deepseek": ("DeepSeekAdapter", "AsyncDeepSeekAdapter", "openai"),
+}
+
+#: provider key -> environment variable consulted when no model is given,
+#: in preference order.
+_ENV_PREFERENCE: tuple[tuple[str, str, str], ...] = (
+    ("anthropic", "ANTHROPIC_API_KEY", DEFAULT_ANTHROPIC_MODEL),
+    ("openai", "OPENAI_API_KEY", DEFAULT_OPENAI_MODEL),
+    ("openrouter", "OPENROUTER_API_KEY", DEFAULT_OPENROUTER_MODEL),
+    ("deepseek", "DEEPSEEK_API_KEY", DEFAULT_DEEPSEEK_MODEL),
+)
+
+
+def _route(model: str | None) -> tuple[str, str]:
+    """Map a model name (or the environment) onto ``(provider_key, model_id)``.
+
+    Sync and async resolution share this routing so the two can never disagree
+    about which provider a model name belongs to.
+
+    Raises:
+        RuntimeError: If no provider can be resolved (no key, no model).
+    """
+    if model is not None:
+        if "/" in model:
+            return "openrouter", model
+        if model.startswith("deepseek"):
+            return "deepseek", model
+        if _is_openai_model(model):
+            return "openai", model
+        return "anthropic", model
+
+    for provider, env_var, default_model in _ENV_PREFERENCE:
+        if os.environ.get(env_var):
+            return provider, default_model
+
+    raise RuntimeError(
+        "No provider configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, "
+        "OPENROUTER_API_KEY, or DEEPSEEK_API_KEY, or pass an explicit "
+        "adapter=... / model=... to ask()/Chat()."
+    )
+
+
+def _build_adapter(model: str | None, *, is_async: bool) -> Any:
+    provider, model_id = _route(model)
+    sync_name, async_name, extra = _ADAPTER_CLASSES[provider]
+    module_name = (
+        "data_harness.providers.anthropic"
+        if provider == "anthropic"
+        else "data_harness.providers.openai"
+    )
+    try:
+        module = importlib.import_module(module_name)
+    except ImportError as exc:  # pragma: no cover - exercised via install matrix
+        raise RuntimeError(
+            f"{provider} support requires the {extra!r} extra: pip install "
+            f"'data-harness[{extra}]'."
+        ) from exc
+    cls = getattr(module, async_name if is_async else sync_name)
+    return cls(model=model_id)
+
+
 def resolve_adapter(model: str | None = None) -> ProviderAdapter:
     """Resolve a `ProviderAdapter` from an explicit model or the environment.
 
@@ -64,66 +131,19 @@ def resolve_adapter(model: str | None = None) -> ProviderAdapter:
     Raises:
         RuntimeError: If no provider can be resolved (no key, no model).
     """
-    if model is not None:
-        if "/" in model:
-            return _make_openrouter(model)
-        if model.startswith("deepseek"):
-            return _make_deepseek(model)
-        if _is_openai_model(model):
-            return _make_openai(model)
-        from data_harness.providers.anthropic import AnthropicAdapter
-
-        return AnthropicAdapter(model=model)
-
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        from data_harness.providers.anthropic import AnthropicAdapter
-
-        return AnthropicAdapter(model=DEFAULT_ANTHROPIC_MODEL)
-    if os.environ.get("OPENAI_API_KEY"):
-        return _make_openai(DEFAULT_OPENAI_MODEL)
-    if os.environ.get("OPENROUTER_API_KEY"):
-        return _make_openrouter(DEFAULT_OPENROUTER_MODEL)
-    if os.environ.get("DEEPSEEK_API_KEY"):
-        return _make_deepseek(DEFAULT_DEEPSEEK_MODEL)
-
-    raise RuntimeError(
-        "No provider configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, "
-        "OPENROUTER_API_KEY, or DEEPSEEK_API_KEY, or pass an explicit "
-        "adapter=... / model=... to ask()/Chat()."
-    )
+    return _build_adapter(model, is_async=False)
 
 
-def _make_openai(model: str) -> ProviderAdapter:
-    try:
-        from data_harness.providers.openai import OpenAIAdapter
-    except ImportError as exc:  # pragma: no cover - exercised via install matrix
-        raise RuntimeError(
-            "OpenAI support requires the 'openai' extra: pip install "
-            "'data-harness[openai]'."
-        ) from exc
-    return OpenAIAdapter(model=model)
+def resolve_async_adapter(model: str | None = None) -> AsyncProviderAdapter:
+    """Resolve an `AsyncProviderAdapter` using the same routing as `resolve_adapter`.
 
+    Args:
+        model: Explicit model id, or ``None`` to pick from the environment.
 
-def _make_openrouter(model: str) -> ProviderAdapter:
-    try:
-        from data_harness.providers.openai import OpenRouterAdapter
-    except ImportError as exc:  # pragma: no cover - exercised via install matrix
-        raise RuntimeError(
-            "OpenRouter support requires the 'openai' extra: pip install "
-            "'data-harness[openai]'."
-        ) from exc
-    return OpenRouterAdapter(model=model)
-
-
-def _make_deepseek(model: str) -> ProviderAdapter:
-    try:
-        from data_harness.providers.openai import DeepSeekAdapter
-    except ImportError as exc:  # pragma: no cover - exercised via install matrix
-        raise RuntimeError(
-            "DeepSeek support requires the 'openai' extra: pip install "
-            "'data-harness[openai]'."
-        ) from exc
-    return DeepSeekAdapter(model=model)
+    Raises:
+        RuntimeError: If no provider can be resolved (no key, no model).
+    """
+    return _build_adapter(model, is_async=True)
 
 
 def _build_agent(

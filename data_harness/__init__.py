@@ -15,7 +15,13 @@ from data_harness.providers.base import (
     ProviderAdapter,
     StopReason,
 )
-from data_harness.quickstart import Chat, SmartFrame, ask, resolve_adapter
+from data_harness.quickstart import (
+    Chat,
+    SmartFrame,
+    ask,
+    resolve_adapter,
+    resolve_async_adapter,
+)
 from data_harness.result import CacheStorageInfo, RunResult, Usage
 from data_harness.streaming import (
     ContentBlockDeltaEvent,
@@ -84,4 +90,5 @@ __all__ = [
     "load_dataframe",
     "mcp_tool_specs",
     "resolve_adapter",
+    "resolve_async_adapter",
 ]

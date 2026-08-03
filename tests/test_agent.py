@@ -100,7 +100,7 @@ class TestAgentPhase1:
         adapter = FakeAdapter([FakeAdapter.text("done")])
         agent = Agent(adapter=adapter, system="sys", max_turns=7, run_dir=str(tmp_path))
         agent.run("hi")
-        assert agent.last_harness._max_turns == 7
+        assert agent.last_harness.max_turns == 7
 
     def test_explain_returns_readable_sketch(self, tmp_path):
         adapter = FakeAdapter([FakeAdapter.text("done")])
@@ -331,7 +331,7 @@ class TestAgentConnectors:
 
         agent.run("hi")
 
-        names = {t.name for t in agent.last_harness._tools}
+        names = {t.name for t in agent.last_harness.tools}
         assert "market_data__fetch_ohlcv" in names
 
     def test_explicit_input_schema_override_bypasses_inference(self, tmp_path):
@@ -354,7 +354,7 @@ class TestAgentConnectors:
 
         agent.run("hi")
 
-        specs = {t.name: t for t in agent.last_harness._tools}
+        specs = {t.name: t for t in agent.last_harness.tools}
         assert specs["market_data__fetch"].input_schema is schema
 
 
@@ -376,7 +376,7 @@ class TestAgentPlanner:
         agent.enable_planner()
         agent.run("plan")
 
-        reminders = agent.last_harness._reminders
+        reminders = agent.last_harness.reminders
         assert len(reminders) == 1
         assert isinstance(reminders[0].__self__, Planner)
 
@@ -388,7 +388,7 @@ class TestAgentPlanner:
 
         names = {t.name for t in adapter.calls[0]["tools"]}
         assert not any(name.startswith("planner__") for name in names)
-        assert agent.last_harness._reminders == []
+        assert agent.last_harness.reminders == []
 
     def test_enable_planner_twice_does_not_duplicate_specs_or_hooks(self, tmp_path):
         adapter = FakeAdapter([FakeAdapter.text("done")])
@@ -402,7 +402,7 @@ class TestAgentPlanner:
         assert names.count("planner__add") == 1
         assert names.count("planner__update") == 1
         assert names.count("planner__list") == 1
-        assert len(agent.last_harness._reminders) == 1
+        assert len(agent.last_harness.reminders) == 1
 
     def test_planner_state_does_not_leak_across_runs(self, tmp_path):
         adapter = FakeAdapter(
@@ -429,6 +429,20 @@ class TestAgentPlanner:
         assert tool_results
         assert "Todo list is empty." in tool_results[-1].content
         assert "task A" not in tool_results[-1].content
+
+
+def _subagent_harness(captured):
+    """Pick the spawned subagent's harness out of every harness constructed.
+
+    `Harness` is a facade over `AsyncHarness`, so a parent run constructs one
+    too. The subagent is identified by its worker system prompt rather than by
+    construction order, which is an implementation detail.
+    """
+    subs = [
+        h for h in captured if h.system.startswith("You are a clean-context worker")
+    ]
+    assert subs, "no subagent harness was constructed"
+    return subs[0]
 
 
 class TestAgentSubagents:
@@ -505,7 +519,7 @@ class TestAgentSubagents:
         assert "subagent" not in captured_names
 
     def test_subagent_does_not_inherit_planner_hooks(self, monkeypatch, tmp_path):
-        from data_harness.loop import Harness as RealHarness
+        from data_harness.loop import AsyncHarness as RealHarness
 
         captured = []
 
@@ -514,7 +528,7 @@ class TestAgentSubagents:
             captured.append(harness)
             return harness
 
-        monkeypatch.setattr("data_harness.loop.Harness", recording_harness)
+        monkeypatch.setattr("data_harness.loop.AsyncHarness", recording_harness)
         adapter = FakeAdapter(
             [
                 FakeAdapter.tool_use("tu_1", "subagent", {"task": "work"}),
@@ -530,11 +544,10 @@ class TestAgentSubagents:
 
         agent.run("delegate")
 
-        assert captured
-        assert captured[0]._reminders == []
+        assert _subagent_harness(captured).reminders == []
 
     def test_subagent_connector_tools_are_fresh_and_hidden(self, monkeypatch, tmp_path):
-        from data_harness.loop import Harness as RealHarness
+        from data_harness.loop import AsyncHarness as RealHarness
 
         captured = []
 
@@ -543,7 +556,7 @@ class TestAgentSubagents:
             captured.append(harness)
             return harness
 
-        monkeypatch.setattr("data_harness.loop.Harness", recording_harness)
+        monkeypatch.setattr("data_harness.loop.AsyncHarness", recording_harness)
         adapter = FakeAdapter(
             [
                 FakeAdapter.tool_use(
@@ -569,10 +582,9 @@ class TestAgentSubagents:
 
         agent.run("load then delegate")
 
-        assert captured
-        sub_harness = captured[0]
-        sub_specs = {t.name: t for t in sub_harness._tools}
-        parent_specs = {t.name: t for t in agent.last_harness._tools}
+        sub_harness = _subagent_harness(captured)
+        sub_specs = {t.name: t for t in sub_harness.tools}
+        parent_specs = {t.name: t for t in agent.last_harness.tools}
         assert sub_specs["load_connectors"].visible is True
         assert sub_specs["market_data__fetch_ohlcv"].visible is False
         assert parent_specs["market_data__fetch_ohlcv"].visible is True
@@ -582,7 +594,7 @@ class TestAgentSubagents:
 
         first_sub_connector_id = id(sub_specs["market_data__fetch_ohlcv"])
         agent.run("fresh second run")
-        second_parent_specs = {t.name: t for t in agent.last_harness._tools}
+        second_parent_specs = {t.name: t for t in agent.last_harness.tools}
         assert id(second_parent_specs["market_data__fetch_ohlcv"]) != id(
             parent_specs["market_data__fetch_ohlcv"]
         )

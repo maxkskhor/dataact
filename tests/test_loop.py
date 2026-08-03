@@ -325,8 +325,8 @@ class TestLoopBasic:
         harness.run("go")
         # The harness internal messages should not be mutated by adapter calls
         # We verify by checking stored messages are structurally sound
-        assert harness._messages is not None
-        for m in harness._messages:
+        assert harness.messages is not None
+        for m in harness.messages:
             assert m.role in ("user", "assistant")
 
     def test_visible_tool_flip_reflects_in_next_call(self, tmp_path):

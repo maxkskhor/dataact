@@ -246,6 +246,6 @@ class TestAgentSessionTurns:
         # by using the harness directly through session
         session = agent.session()
         # Patch: add the echo spec to the harness tools for this test
-        session.harness._tools.append(echo_spec)
+        session.harness.tools.append(echo_spec)
         session.ask("go")
         assert session.turns == 2
