@@ -9,13 +9,13 @@ from pathlib import Path
 
 import pytest
 
-from data_harness.cache import SessionCache
-from data_harness.exceptions import MaxTurnsExceeded
-from data_harness.loop import Harness
-from data_harness.providers.base import NormalizedResponse, StopReason
-from data_harness.result import CacheStorageInfo, RunResult, Usage
-from data_harness.testing import FakeAdapter
-from data_harness.types import TextBlock, ToolSpec, ToolUseBlock
+from data_harness.core.exceptions import MaxTurnsExceeded
+from data_harness.core.result import CacheStorageInfo, RunResult, Usage
+from data_harness.data.cache import SessionCache
+from data_harness.data.harness import Harness
+from data_harness.llm.providers.base import NormalizedResponse, StopReason
+from data_harness.llm.testing import FakeAdapter
+from data_harness.llm.types import TextBlock, ToolSpec, ToolUseBlock
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -256,14 +256,14 @@ class TestHarnessRunResult:
         result = make_harness([make_text_response("ok")], tmp_path=tmp_path).run_result(
             "x"
         )
-        from data_harness.providers.base import StopReason
+        from data_harness.llm.providers.base import StopReason
 
         assert result.stop_reason == StopReason.END_TURN
 
     def test_max_turns_returns_result_not_raises(self, tmp_path):
         # run_result should NOT raise MaxTurnsExceeded - it returns status instead
         # All responses are TOOL_USE to force max turns
-        from data_harness.providers.base import NormalizedResponse as NR
+        from data_harness.llm.providers.base import NormalizedResponse as NR
 
         tool_responses = [
             NR(
@@ -379,7 +379,7 @@ class TestHarnessAskResult:
 
 class TestAgentRunResult:
     def test_returns_run_result(self, tmp_path):
-        from data_harness.agent import Agent
+        from data_harness.app.agent import Agent
 
         adapter = FakeAdapter([FakeAdapter.text("done")])
         agent = Agent(adapter=adapter, system="sys", run_dir=str(tmp_path))
@@ -387,7 +387,7 @@ class TestAgentRunResult:
         assert isinstance(result, RunResult)
 
     def test_text_matches_run(self, tmp_path):
-        from data_harness.agent import Agent
+        from data_harness.app.agent import Agent
 
         adapter_a = FakeAdapter([FakeAdapter.text("hello")])
         adapter_b = FakeAdapter([FakeAdapter.text("hello")])
@@ -396,7 +396,7 @@ class TestAgentRunResult:
         assert agent_a.run_result("hi").text == agent_b.run("hi")
 
     def test_status_success(self, tmp_path):
-        from data_harness.agent import Agent
+        from data_harness.app.agent import Agent
 
         adapter = FakeAdapter([FakeAdapter.text("ok")])
         agent = Agent(adapter=adapter, system="sys", run_dir=str(tmp_path))
@@ -404,7 +404,7 @@ class TestAgentRunResult:
         assert result.status == "success"
 
     def test_run_file_populated(self, tmp_path):
-        from data_harness.agent import Agent
+        from data_harness.app.agent import Agent
 
         adapter = FakeAdapter([FakeAdapter.text("ok")])
         agent = Agent(adapter=adapter, system="sys", run_dir=str(tmp_path))
@@ -413,7 +413,7 @@ class TestAgentRunResult:
         assert Path(result.run_file).exists()
 
     def test_run_still_returns_string(self, tmp_path):
-        from data_harness.agent import Agent
+        from data_harness.app.agent import Agent
 
         adapter = FakeAdapter([FakeAdapter.text("hello")])
         agent = Agent(adapter=adapter, system="sys", run_dir=str(tmp_path))
@@ -427,7 +427,7 @@ class TestAgentRunResult:
 
 class TestAgentSessionAskResult:
     def test_returns_run_result(self, tmp_path):
-        from data_harness.agent import Agent
+        from data_harness.app.agent import Agent
 
         adapter = FakeAdapter([FakeAdapter.text("first"), FakeAdapter.text("second")])
         agent = Agent(adapter=adapter, system="sys", run_dir=str(tmp_path))
@@ -438,8 +438,8 @@ class TestAgentSessionAskResult:
         assert result.text == "second"
 
     def test_usage_per_ask(self, tmp_path):
-        from data_harness.agent import Agent
-        from data_harness.providers.base import NormalizedResponse as NR
+        from data_harness.app.agent import Agent
+        from data_harness.llm.providers.base import NormalizedResponse as NR
 
         r1 = NR(
             stop_reason=StopReason.END_TURN,
@@ -466,7 +466,7 @@ class TestAgentSessionAskResult:
         assert result.usage.output_tokens == 3
 
     def test_ask_still_returns_string(self, tmp_path):
-        from data_harness.agent import Agent
+        from data_harness.app.agent import Agent
 
         adapter = FakeAdapter([FakeAdapter.text("hi")])
         agent = Agent(adapter=adapter, system="sys", run_dir=str(tmp_path))

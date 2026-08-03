@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
+    from data_harness.core.result import RunResult
     from data_harness.eval.graders import Grade
-    from data_harness.result import RunResult
 
 # A grader inspects the run's outcome and decides pass/fail.
 Grader = Callable[["RunResult", "EvalCase"], "Grade"]

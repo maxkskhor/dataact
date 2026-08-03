@@ -10,14 +10,14 @@ from pathlib import Path
 
 import pytest
 
-from data_harness.loop import Harness
-from data_harness.providers.base import StopReason
-from data_harness.testing import FakeAdapter
-from data_harness.types import TextBlock, ToolSpec
+from data_harness.data.harness import Harness
+from data_harness.llm.providers.base import StopReason
+from data_harness.llm.testing import FakeAdapter
+from data_harness.llm.types import TextBlock, ToolSpec
 
 
 def make_text_response(text: str):
-    from data_harness.providers.base import NormalizedResponse
+    from data_harness.llm.providers.base import NormalizedResponse
 
     return NormalizedResponse(
         stop_reason=StopReason.END_TURN,
@@ -41,12 +41,12 @@ def read_jsonl(path: str) -> list[dict]:
 
 class TestToolAnnotations:
     def test_import(self):
-        from data_harness.types import ToolAnnotations
+        from data_harness.llm.types import ToolAnnotations
 
         assert ToolAnnotations is not None
 
     def test_all_fields_optional(self):
-        from data_harness.types import ToolAnnotations
+        from data_harness.llm.types import ToolAnnotations
 
         ann = ToolAnnotations()
         assert ann.title is None
@@ -56,7 +56,7 @@ class TestToolAnnotations:
         assert ann.open_world is None
 
     def test_explicit_fields(self):
-        from data_harness.types import ToolAnnotations
+        from data_harness.llm.types import ToolAnnotations
 
         ann = ToolAnnotations(
             title="Echo",
@@ -70,7 +70,7 @@ class TestToolAnnotations:
         assert ann.cache_mutating is False
 
     def test_frozen(self):
-        from data_harness.types import ToolAnnotations
+        from data_harness.llm.types import ToolAnnotations
 
         ann = ToolAnnotations(title="Echo")
         with pytest.raises((AttributeError, TypeError)):
@@ -92,7 +92,7 @@ class TestToolSpecAnnotations:
         assert spec.annotations is None
 
     def test_annotations_field_set(self):
-        from data_harness.types import ToolAnnotations
+        from data_harness.llm.types import ToolAnnotations
 
         ann = ToolAnnotations(read_only=True)
         spec = ToolSpec(
@@ -105,7 +105,7 @@ class TestToolSpecAnnotations:
         assert spec.annotations.read_only is True
 
     def test_to_provider_dict_excludes_annotations(self):
-        from data_harness.types import ToolAnnotations
+        from data_harness.llm.types import ToolAnnotations
 
         ann = ToolAnnotations(read_only=True, destructive=False)
         spec = ToolSpec(
@@ -128,24 +128,24 @@ class TestToolSpecAnnotations:
 
 class TestBuiltinToolAnnotations:
     def test_list_variables_read_only(self):
-        from data_harness.cache import SessionCache
-        from data_harness.tools.variables import make_list_variables_spec
+        from data_harness.data.cache import SessionCache
+        from data_harness.data.tools.variables import make_list_variables_spec
 
         spec = make_list_variables_spec(SessionCache())
         assert spec.annotations is not None
         assert spec.annotations.read_only is True
 
     def test_python_interpreter_cache_mutating(self):
-        from data_harness.cache import SessionCache
-        from data_harness.tools.interpreter import PythonInterpreter
+        from data_harness.data.cache import SessionCache
+        from data_harness.data.tools.interpreter import PythonInterpreter
 
         spec = PythonInterpreter.make_tool_spec(SessionCache())
         assert spec.annotations is not None
         assert spec.annotations.cache_mutating is True
 
     def test_python_interpreter_not_open_world(self):
-        from data_harness.cache import SessionCache
-        from data_harness.tools.interpreter import PythonInterpreter
+        from data_harness.data.cache import SessionCache
+        from data_harness.data.tools.interpreter import PythonInterpreter
 
         spec = PythonInterpreter.make_tool_spec(SessionCache())
         assert spec.annotations.open_world is False
@@ -158,7 +158,7 @@ class TestBuiltinToolAnnotations:
 
 class TestAnnotationsInLog:
     def test_annotations_serialised_in_jsonl(self, tmp_path):
-        from data_harness.types import ToolAnnotations
+        from data_harness.llm.types import ToolAnnotations
 
         ann = ToolAnnotations(title="Echo tool", read_only=True)
         echo_spec = ToolSpec(

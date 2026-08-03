@@ -23,14 +23,14 @@ import json
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from data_harness.agent import AsyncAgent
-from data_harness.loop import AsyncHarness
-from data_harness.providers.base import (
+from data_harness.app.agent import AsyncAgent
+from data_harness.data.harness import AsyncHarness
+from data_harness.llm.providers.base import (
     AsyncProviderAdapter,
     NormalizedResponse,
     StopReason,
 )
-from data_harness.streaming import (
+from data_harness.llm.streaming import (
     ContentBlockDeltaEvent,
     ContentBlockStartEvent,
     ContentBlockStopEvent,
@@ -43,8 +43,8 @@ from data_harness.streaming import (
     ToolResultEvent,
     accumulate_stream_events,
 )
-from data_harness.testing import FakeAsyncAdapter
-from data_harness.types import Message, TextBlock, ToolSpec, ToolUseBlock
+from data_harness.llm.testing import FakeAsyncAdapter
+from data_harness.llm.types import Message, TextBlock, ToolSpec, ToolUseBlock
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -681,7 +681,7 @@ class TestMultipleToolsPerTurn:
             ),
         ]
 
-        from data_harness.providers.base import NormalizedResponse
+        from data_harness.llm.providers.base import NormalizedResponse
 
         two_tool_response = NormalizedResponse(
             stop_reason=StopReason.TOOL_USE,
@@ -1017,7 +1017,7 @@ class TestStreamErrorHandling:
         def explode(_events):
             raise ValueError("cannot assemble this turn")
 
-        monkeypatch.setattr("data_harness.loop.accumulate_stream_events", explode)
+        monkeypatch.setattr("data_harness.core.loop.accumulate_stream_events", explode)
         harness = AsyncHarness(
             adapter=FakeAsyncAdapter([FakeAsyncAdapter.text("hi")]),
             system="s",
@@ -1090,7 +1090,7 @@ class TestAsyncAgentRunStream:
             raw_calls.append(v)
             return "raw_result"
 
-        from data_harness.loop import AsyncHarness
+        from data_harness.data.harness import AsyncHarness
 
         harness = AsyncHarness(
             adapter=adapter2,

@@ -7,7 +7,7 @@ import json
 import pandas as pd
 import pytest
 
-from data_harness.cache import SessionCache
+from data_harness.data.cache import SessionCache
 
 
 def test_answer_slot_roundtrip():

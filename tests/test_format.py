@@ -1,6 +1,6 @@
 import pytest
 
-from data_harness.format import format_tool_output
+from data_harness.data.format import format_tool_output
 
 # ──────────────────────────────────────────────
 # Phase 0: inline-path tests (no cache needed)

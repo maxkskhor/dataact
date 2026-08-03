@@ -1,6 +1,6 @@
 import pytest
 
-from data_harness.cache import SessionCache
+from data_harness.data.cache import SessionCache
 
 
 class TestPutGet:

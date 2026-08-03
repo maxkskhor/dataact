@@ -4,8 +4,8 @@ from enum import Enum
 
 import pytest
 
-from data_harness.serialize import to_jsonable
-from data_harness.types import TextBlock, ToolResultBlock, ToolUseBlock
+from data_harness.core.serialize import to_jsonable
+from data_harness.llm.types import TextBlock, ToolResultBlock, ToolUseBlock
 
 
 class Color(Enum):

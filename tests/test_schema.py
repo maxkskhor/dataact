@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import pytest
 
-from data_harness.schema import infer_input_schema
+from data_harness.core.schema import infer_input_schema
 
 OVERRIDE_HINT = "pass input_schema=... to override"
 

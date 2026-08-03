@@ -9,11 +9,15 @@ from pathlib import Path
 
 import pytest
 
-from data_harness.cache import SessionCache
-from data_harness.loop import Harness
-from data_harness.providers.base import NormalizedResponse, ProviderAdapter, StopReason
-from data_harness.testing import FakeAdapter
-from data_harness.types import TextBlock, ToolAnnotations, ToolSpec, ToolUseBlock
+from data_harness.data.cache import SessionCache
+from data_harness.data.harness import Harness
+from data_harness.llm.providers.base import (
+    NormalizedResponse,
+    ProviderAdapter,
+    StopReason,
+)
+from data_harness.llm.testing import FakeAdapter
+from data_harness.llm.types import TextBlock, ToolAnnotations, ToolSpec, ToolUseBlock
 
 
 def make_text_response(
@@ -212,7 +216,7 @@ class TestCacheSnapshotsPostMutation:
         """cache_snapshots in RunResult should capture the state AFTER any
         tool calls, not the pre-run state.
         """
-        from data_harness.cache import SessionCache
+        from data_harness.data.cache import SessionCache
 
         cache = SessionCache()
         initial_data = [1, 2, 3]
@@ -334,8 +338,8 @@ class TestAnnotationsNoneNotInProviderDict:
 
 class TestConnectorBuilderAnnotations:
     def test_connector_tool_accepts_annotations(self, tmp_path):
-        from data_harness.agent import Agent
-        from data_harness.testing import FakeAdapter
+        from data_harness.app.agent import Agent
+        from data_harness.llm.testing import FakeAdapter
 
         adapter = FakeAdapter([FakeAdapter.text("done")])
         agent = Agent(adapter=adapter, system="s", run_dir=str(tmp_path))
@@ -352,8 +356,8 @@ class TestConnectorBuilderAnnotations:
         assert result.status == "success"
 
     def test_connector_tool_annotations_propagate_to_spec(self, tmp_path):
-        from data_harness.agent import Agent
-        from data_harness.testing import FakeAdapter
+        from data_harness.app.agent import Agent
+        from data_harness.llm.testing import FakeAdapter
 
         adapter = FakeAdapter([FakeAdapter.text("done")])
         agent = Agent(adapter=adapter, system="s", run_dir=str(tmp_path))

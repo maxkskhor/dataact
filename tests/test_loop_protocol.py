@@ -29,8 +29,8 @@ from pathlib import Path
 
 import pytest
 
-from data_harness.agent import Agent, AsyncAgent
-from data_harness.loop import (
+from data_harness.app.agent import Agent, AsyncAgent
+from data_harness.data.harness import (
     AsyncHarness,
     CallProvider,
     CallTool,
@@ -40,9 +40,9 @@ from data_harness.loop import (
     ToolFinished,
     run_coroutine_blocking,
 )
-from data_harness.streaming import ContentBlockDeltaEvent, TextDelta
-from data_harness.testing import FakeAdapter, FakeAsyncAdapter
-from data_harness.types import ToolSpec
+from data_harness.llm.streaming import ContentBlockDeltaEvent, TextDelta
+from data_harness.llm.testing import FakeAdapter, FakeAsyncAdapter
+from data_harness.llm.types import ToolSpec
 
 
 def echo_spec() -> ToolSpec:
@@ -433,7 +433,7 @@ def test_looking_up_the_ambient_loop_does_not_create_one():
         policy = asyncio.get_event_loop_policy()
         assert policy._local._set_called is False, "process was not pristine"
 
-        from data_harness.loop import _ambient_event_loop, run_coroutine_blocking
+        from data_harness.core.loop import _ambient_event_loop, run_coroutine_blocking
 
         before = _ambient_event_loop()
         if before is not None:
@@ -739,7 +739,7 @@ def test_an_unreadable_ambient_loop_leaves_no_closed_loop_behind():
     """
     import threading
 
-    from data_harness.loop import _UNREADABLE, _ambient_event_loop
+    from data_harness.core.loop import _UNREADABLE, _ambient_event_loop
 
     class OpaquePolicy(asyncio.AbstractEventLoopPolicy):
         """A policy that keeps its current loop somewhere we cannot read.

@@ -3,16 +3,20 @@
 import pandas as pd
 import pytest
 
-from data_harness.cache import SessionCache
-from data_harness.loop import Harness
-from data_harness.providers.base import NormalizedResponse, ProviderAdapter, StopReason
-from data_harness.tools.interpreter import (
+from data_harness.data.cache import SessionCache
+from data_harness.data.harness import Harness
+from data_harness.data.tools.interpreter import (
     _EMPTY_OUTPUT_GUIDANCE,
     _LOCALS_ERROR,
     PythonInterpreter,
     PythonInterpreterError,
 )
-from data_harness.types import TextBlock, ToolResultBlock, ToolUseBlock
+from data_harness.llm.providers.base import (
+    NormalizedResponse,
+    ProviderAdapter,
+    StopReason,
+)
+from data_harness.llm.types import TextBlock, ToolResultBlock, ToolUseBlock
 
 # ---------------------------------------------------------------------------
 # Helpers

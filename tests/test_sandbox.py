@@ -6,10 +6,10 @@ import pandas as pd
 import pytest
 
 from data_harness import Agent
-from data_harness.cache import SessionCache
-from data_harness.testing import FakeAdapter
-from data_harness.tools.interpreter import PythonInterpreterError
-from data_harness.tools.sandbox import SubprocessPythonInterpreter
+from data_harness.data.cache import SessionCache
+from data_harness.data.tools.interpreter import PythonInterpreterError
+from data_harness.data.tools.sandbox import SubprocessPythonInterpreter
+from data_harness.llm.testing import FakeAdapter
 
 
 def _interp(tmp_path, *, timeout=30, **kw) -> SubprocessPythonInterpreter:

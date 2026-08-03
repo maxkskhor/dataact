@@ -8,11 +8,15 @@ from pathlib import Path
 
 import pytest
 
-from data_harness.cache import SessionCache
-from data_harness.exceptions import MaxTurnsExceeded
-from data_harness.loop import Harness
-from data_harness.providers.base import NormalizedResponse, ProviderAdapter, StopReason
-from data_harness.types import (
+from data_harness.core.exceptions import MaxTurnsExceeded
+from data_harness.data.cache import SessionCache
+from data_harness.data.harness import Harness
+from data_harness.llm.providers.base import (
+    NormalizedResponse,
+    ProviderAdapter,
+    StopReason,
+)
+from data_harness.llm.types import (
     Message,
     TextBlock,
     ToolResultBlock,

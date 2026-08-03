@@ -1,6 +1,6 @@
 import time
 
-from data_harness.observe import TurnMetrics, time_block
+from data_harness.core.observe import TurnMetrics, time_block
 
 
 def test_turn_metrics_fields():

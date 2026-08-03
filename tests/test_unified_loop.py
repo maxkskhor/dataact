@@ -13,18 +13,18 @@ import threading
 
 import pytest
 
-from data_harness.agent import Agent, AgentSession, AsyncAgent, AsyncAgentSession
-from data_harness.loop import AsyncHarness, Harness, run_coroutine_blocking
-from data_harness.providers.base import (
+from data_harness.app.agent import Agent, AgentSession, AsyncAgent, AsyncAgentSession
+from data_harness.app.quickstart import resolve_adapter, resolve_async_adapter
+from data_harness.data.harness import AsyncHarness, Harness, run_coroutine_blocking
+from data_harness.llm.providers.base import (
     AsyncProviderAdapter,
     NormalizedResponse,
     ProviderAdapter,
     StopReason,
 )
-from data_harness.quickstart import resolve_adapter, resolve_async_adapter
-from data_harness.streaming import MessageDeltaEvent, ToolResultEvent
-from data_harness.testing import FakeAdapter, FakeAsyncAdapter
-from data_harness.types import Message, ToolSpec, ToolUseBlock
+from data_harness.llm.streaming import MessageDeltaEvent, ToolResultEvent
+from data_harness.llm.testing import FakeAdapter, FakeAsyncAdapter
+from data_harness.llm.types import Message, ToolSpec, ToolUseBlock
 
 # ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -539,7 +539,7 @@ async def test_async_driver_dispatch_is_overridable(tmp_path):
         "_tools",
         "_system",
         "_max_turns",
-        "_cache",
+        "_environment",
         "_reminders",
         "_run_file",
         "_on_code",

@@ -5,11 +5,11 @@ TDD: written before implementation.
 
 from __future__ import annotations
 
-from data_harness.agent import Agent
-from data_harness.providers.base import NormalizedResponse, StopReason
-from data_harness.result import RunResult
-from data_harness.testing import FakeAdapter
-from data_harness.types import TextBlock
+from data_harness.app.agent import Agent
+from data_harness.core.result import RunResult
+from data_harness.llm.providers.base import NormalizedResponse, StopReason
+from data_harness.llm.testing import FakeAdapter
+from data_harness.llm.types import TextBlock
 
 
 def make_text_response(
@@ -228,7 +228,7 @@ class TestAgentSessionTurns:
         A two-turn run (tool-use + end-turn) triggered by one ask() should
         contribute 2 to session.turns.
         """
-        from data_harness.types import ToolSpec, ToolUseBlock
+        from data_harness.llm.types import ToolSpec, ToolUseBlock
 
         tool_resp = NormalizedResponse(
             stop_reason=StopReason.TOOL_USE,

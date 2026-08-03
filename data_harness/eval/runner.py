@@ -6,12 +6,12 @@ from collections.abc import Callable, Iterable
 from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
+from data_harness.app.quickstart import Chat, ask
 from data_harness.eval.case import ConversationCase, EvalCase
 from data_harness.eval.report import CaseResult, EvalReport
-from data_harness.quickstart import Chat, ask
 
 if TYPE_CHECKING:
-    from data_harness.providers.base import ProviderAdapter
+    from data_harness.llm.providers.base import ProviderAdapter
 
 
 def evaluate(

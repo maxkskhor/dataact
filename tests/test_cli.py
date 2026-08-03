@@ -7,7 +7,7 @@ import json
 import pandas as pd
 
 from data_harness import cli
-from data_harness.result import RunResult, Usage
+from data_harness.core.result import RunResult, Usage
 
 
 def _fake_result(text="the answer is 6", value=6, charts=None) -> RunResult:

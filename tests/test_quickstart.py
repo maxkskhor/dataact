@@ -6,9 +6,9 @@ import pandas as pd
 import pytest
 
 from data_harness import Chat, SmartFrame, ask
-from data_harness.io import load_dataframe, sanitise_handle, to_handles
-from data_harness.quickstart import resolve_adapter
-from data_harness.testing import FakeAdapter
+from data_harness.app.quickstart import resolve_adapter
+from data_harness.data.io import load_dataframe, sanitise_handle, to_handles
+from data_harness.llm.testing import FakeAdapter
 
 
 def _frame() -> pd.DataFrame:
@@ -26,8 +26,8 @@ def _answer_adapter(code: str, final: str) -> FakeAdapter:
 
 # --- provider resolution ---------------------------------------------------
 def test_resolve_adapter_routes_by_model_name(monkeypatch):
-    from data_harness.providers.anthropic import AnthropicAdapter
-    from data_harness.providers.openai import OpenAIAdapter
+    from data_harness.llm.providers.anthropic import AnthropicAdapter
+    from data_harness.llm.providers.openai import OpenAIAdapter
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -37,7 +37,7 @@ def test_resolve_adapter_routes_by_model_name(monkeypatch):
 
 
 def test_resolve_adapter_prefers_anthropic_env(monkeypatch):
-    from data_harness.providers.anthropic import AnthropicAdapter
+    from data_harness.llm.providers.anthropic import AnthropicAdapter
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -45,7 +45,7 @@ def test_resolve_adapter_prefers_anthropic_env(monkeypatch):
 
 
 def test_resolve_adapter_falls_back_to_openai(monkeypatch):
-    from data_harness.providers.openai import OpenAIAdapter
+    from data_harness.llm.providers.openai import OpenAIAdapter
 
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -61,7 +61,7 @@ def test_resolve_adapter_raises_without_keys(monkeypatch):
 
 
 def test_resolve_adapter_routes_slash_model_to_openrouter(monkeypatch):
-    from data_harness.providers.openai import OPENROUTER_BASE_URL, OpenRouterAdapter
+    from data_harness.llm.providers.openai import OPENROUTER_BASE_URL, OpenRouterAdapter
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     adapter = resolve_adapter("anthropic/claude-3.5-sonnet")
@@ -70,7 +70,7 @@ def test_resolve_adapter_routes_slash_model_to_openrouter(monkeypatch):
 
 
 def test_resolve_adapter_falls_back_to_openrouter(monkeypatch):
-    from data_harness.providers.openai import OpenRouterAdapter
+    from data_harness.llm.providers.openai import OpenRouterAdapter
 
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -79,7 +79,7 @@ def test_resolve_adapter_falls_back_to_openrouter(monkeypatch):
 
 
 def test_openrouter_adapter_uses_env_key(monkeypatch):
-    from data_harness.providers.openai import OpenRouterAdapter
+    from data_harness.llm.providers.openai import OpenRouterAdapter
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "router-secret")
     adapter = OpenRouterAdapter(model="openai/gpt-4o-mini")
@@ -87,7 +87,7 @@ def test_openrouter_adapter_uses_env_key(monkeypatch):
 
 
 def test_resolve_adapter_routes_deepseek_direct(monkeypatch):
-    from data_harness.providers.openai import DEEPSEEK_BASE_URL, DeepSeekAdapter
+    from data_harness.llm.providers.openai import DEEPSEEK_BASE_URL, DeepSeekAdapter
 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "ds-key")
     adapter = resolve_adapter("deepseek-chat")
@@ -96,7 +96,7 @@ def test_resolve_adapter_routes_deepseek_direct(monkeypatch):
 
 
 def test_resolve_adapter_deepseek_slash_goes_to_openrouter(monkeypatch):
-    from data_harness.providers.openai import OpenRouterAdapter
+    from data_harness.llm.providers.openai import OpenRouterAdapter
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     # a slash means OpenRouter, even for deepseek
@@ -104,7 +104,7 @@ def test_resolve_adapter_deepseek_slash_goes_to_openrouter(monkeypatch):
 
 
 def test_resolve_adapter_falls_back_to_deepseek(monkeypatch):
-    from data_harness.providers.openai import DeepSeekAdapter
+    from data_harness.llm.providers.openai import DeepSeekAdapter
 
     for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"):
         monkeypatch.delenv(var, raising=False)
@@ -213,7 +213,7 @@ def test_load_dataframe_unsupported(tmp_path):
 
 # --- pandas accessor + notebook magic --------------------------------------
 def test_pandas_chat_accessor(tmp_path):
-    import data_harness.pandas  # noqa: F401  registers the accessor
+    import data_harness.app.pandas  # noqa: F401  registers the accessor
 
     df = _frame()
     adapter = FakeAdapter([FakeAdapter.text("via accessor")])
@@ -222,7 +222,7 @@ def test_pandas_chat_accessor(tmp_path):
 
 
 def test_notebook_magic_class_builds():
-    from data_harness.notebook import _load_magics_class
+    from data_harness.app.notebook import _load_magics_class
 
     cls = _load_magics_class()
     assert hasattr(cls, "ask")
