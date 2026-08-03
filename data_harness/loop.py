@@ -39,7 +39,6 @@ import asyncio
 import concurrent.futures
 import dataclasses
 import functools
-import warnings
 from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
 from contextlib import aclosing
 from dataclasses import dataclass
@@ -131,7 +130,25 @@ class Failed:
 
 
 Effect = CallProvider | CallTool | ToolFinished
+
+#: What a driver may send back. `CallProvider` and `CallTool` require an
+#: `Ok` or a `Failed`; `ToolFinished` is an announcement and takes ``None``.
 Answer = Ok | Failed | None
+
+
+def _require_answer(effect: Effect, answer: Answer) -> Ok | Failed:
+    """Reject a driver that answered a request with nothing.
+
+    Without this the loop would do ``answer.value`` and raise
+    ``AttributeError: 'NoneType' object has no attribute 'value'`` several
+    frames from the driver that actually got it wrong.
+    """
+    if isinstance(answer, (Ok, Failed)):
+        return answer
+    raise TypeError(
+        f"{type(effect).__name__} must be answered with Ok(...) or Failed(...), "
+        f"got {answer!r}"
+    )
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
@@ -158,25 +175,31 @@ def _evaluate_code_gate(
     return None
 
 
-def _ambient_event_loop() -> asyncio.AbstractEventLoop | None:
-    """The loop already installed on this thread, or ``None``.
+#: Returned by `_ambient_event_loop` when the thread's loop cannot be read
+#: without risking a side effect. Distinct from ``None``, which means "read
+#: successfully, and there is no loop".
+_UNREADABLE = object()
+
+
+def _ambient_event_loop() -> Any:
+    """The loop already installed on this thread, ``None``, or `_UNREADABLE`.
 
     Must not install one as a side effect: on Python 3.10 and 3.11
-    ``get_event_loop()`` *creates* a loop when none is set, which would leave
-    a never-run, never-closed loop (and its selector fd) behind on a thread
-    that only ever used the synchronous API. The policy's private slot is the
-    only way to look without touching.
+    ``asyncio.get_event_loop()`` *creates* one when none is set, which would
+    leave a never-run, never-closed loop and its selector fd behind on a
+    thread that only ever used the synchronous API. The stdlib policy keeps
+    the answer in a private slot and offers no public read-only accessor, so
+    that slot is what we read.
+
+    Under a policy that does not expose it, we decline to guess: creating a
+    loop to find out whether one exists is the exact bug this guards against,
+    so the caller is told it cannot know and leaves the thread alone.
     """
     policy = asyncio.get_event_loop_policy()
-    watcher = getattr(policy, "_local", None)
-    if watcher is not None:
-        return getattr(watcher, "_loop", None)
-    with warnings.catch_warnings():  # pragma: no cover - non-default policy
-        warnings.simplefilter("ignore", DeprecationWarning)
-        try:
-            return asyncio.get_event_loop_policy().get_event_loop()
-        except RuntimeError:
-            return None
+    local = getattr(policy, "_local", None)
+    if local is None:  # pragma: no cover - non-default policy
+        return _UNREADABLE
+    return getattr(local, "_loop", None)
 
 
 def run_coroutine_blocking(coro: Coroutine[Any, Any, _T]) -> _T:
@@ -204,7 +227,8 @@ def run_coroutine_blocking(coro: Coroutine[Any, Any, _T]) -> _T:
                 loop.run_until_complete(loop.shutdown_asyncgens())
             finally:
                 loop.close()
-                asyncio.set_event_loop(previous)
+                if previous is not _UNREADABLE:
+                    asyncio.set_event_loop(previous)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         return pool.submit(asyncio.run, coro).result()
@@ -343,11 +367,12 @@ class _HarnessBase:
             visible_tools = [t for t in self._tools if t.visible]
 
             with time_block() as tb:
-                outcome = yield CallProvider(
+                request = CallProvider(
                     system=self._system,
                     messages=self._messages,
                     tools=visible_tools,
                 )
+                outcome = _require_answer(request, (yield request))
 
             if isinstance(outcome, Failed):
                 log_error_turn(
@@ -463,12 +488,13 @@ class _HarnessBase:
                     )
                     continue
 
-            answer = yield CallTool(
+            request = CallTool(
                 tool_use_id=tub.tool_use_id,
                 tool_name=tub.tool_name,
                 handler=spec.handler,
                 tool_input=tub.tool_input,
             )
+            answer = _require_answer(request, (yield request))
 
             if isinstance(answer, Failed):
                 finished.append(

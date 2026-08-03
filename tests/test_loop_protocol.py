@@ -1,17 +1,31 @@
 """The effect protocol, and the invariants mutation testing showed were loose.
 
-An independent review mutated `loop.py` and `agent.py` and found seven changes
-the suite did not notice: the approval gate's scope, whether a blocked call is
-an error, `_stamp` writing through to `last_result`, the `ToolFinished`
-send-`None` contract, latency actually being measured, the async replay's
-offload, and an errored run's text. Each of those has a test here.
+Independent reviews mutated `loop.py` and `agent.py` and found changes the
+suite did not notice: the approval gate's scope, whether a blocked call counts
+as an error, `_stamp` writing through to `last_result`, latency actually being
+measured, the async replay's offload, an errored run's text, and `last_result`
+being cleared when a new run starts. Each has a test here.
+
+Two of the reviews' findings were about tests in this file rather than the
+code, and are worth remembering:
+
+- A probe for the ambient-event-loop bug must run in a *subprocess*. The bug
+  only fires on the main thread of a process whose loop has never been set, so
+  an in-process version passes against the bug it exists to catch.
+- Answering `ToolFinished` with a value is harmless, not a desync: each
+  `yield` receives its own send value. The ordering of effects is the real
+  invariant, and that is what is pinned.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
+import sys
+import textwrap
 import time
+from pathlib import Path
 
 import pytest
 
@@ -24,7 +38,6 @@ from data_harness.loop import (
     Harness,
     Ok,
     ToolFinished,
-    run_coroutine_blocking,
 )
 from data_harness.streaming import ContentBlockDeltaEvent, TextDelta
 from data_harness.testing import FakeAdapter, FakeAsyncAdapter
@@ -275,11 +288,11 @@ def test_a_handler_returning_failed_is_not_mistaken_for_a_failure(tmp_path):
 
 
 def test_the_effect_and_answer_sequence_lines_up(tmp_path):
-    """Drive `_plan` by hand and pin the protocol.
+    """Drive `_plan` by hand and pin the effect order and answer shapes.
 
-    `ToolFinished` is an announcement answered with ``None``. Answering it
-    with a value would shift every later send by one and feed a tool result
-    into the wrong `yield`, which no end-to-end test would localise.
+    Each `yield` receives its own send value, so answering `ToolFinished` with
+    something is merely ignored, not a desync. What does matter, and is pinned
+    here, is which effect arrives when and what each one carries.
     """
     harness = Harness(
         adapter=FakeAdapter([]),
@@ -403,20 +416,49 @@ def test_sync_driver_awaits_async_tool_handlers(tmp_path):
 def test_looking_up_the_ambient_loop_does_not_create_one():
     """The helper protecting the ambient loop must not install one itself.
 
-    On Python 3.10/3.11 `get_event_loop()` creates a loop when none is set,
-    which would leave a never-run, never-closed loop and its selector fd
-    behind on a thread that only ever used the synchronous API.
+    On Python 3.10/3.11 `asyncio.get_event_loop()` creates a loop when none is
+    set, leaving a never-run, never-closed loop and its selector fd behind on
+    a thread that only ever used the synchronous API.
+
+    Must run in a subprocess. The bug only fires on the *main* thread of a
+    process whose event loop has never been set: `get_event_loop()` raises on
+    a worker thread and once `set_event_loop` has been called anywhere, so a
+    probe run inside the pytest process passes against the bug it exists to
+    catch. This test was written that way first, and was worthless.
     """
-    from data_harness.loop import _ambient_event_loop
+    probe = textwrap.dedent(
+        """
+        import asyncio, sys
+        policy = asyncio.get_event_loop_policy()
+        assert policy._local._set_called is False, "process was not pristine"
 
-    asyncio.set_event_loop(None)
-    assert _ambient_event_loop() is None
+        from data_harness.loop import _ambient_event_loop, run_coroutine_blocking
 
-    async def coro():
-        return 1
+        before = _ambient_event_loop()
+        if before is not None:
+            sys.exit(f"FAIL: looking created a loop: {before!r}")
 
-    assert run_coroutine_blocking(coro()) == 1
-    assert _ambient_event_loop() is None
+        async def coro():
+            return 1
+
+        if run_coroutine_blocking(coro()) != 1:
+            sys.exit("FAIL: coroutine did not run")
+
+        after = _ambient_event_loop()
+        if after is not None:
+            sys.exit(f"FAIL: a loop was left behind: {after!r}")
+        print("OK")
+        """
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        cwd=str(Path(__file__).resolve().parent.parent),
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "OK" in completed.stdout
 
 
 @pytest.mark.asyncio
@@ -521,3 +563,166 @@ async def test_async_replay_does_not_block_the_event_loop(tmp_path):
 
     assert result.text == "cached answer"
     assert seen and seen != [threading.current_thread().name]
+
+
+# ── the answer contract is enforced, not assumed ────────────────────────────
+
+
+def test_a_request_answered_with_none_fails_loudly(tmp_path):
+    """A driver that answers a request with nothing must be told so.
+
+    Unchecked, the loop does `answer.value` and raises AttributeError several
+    frames away from the driver that actually got it wrong.
+    """
+    harness = Harness(
+        adapter=FakeAdapter([]), system="sys", tools=[], run_dir=str(tmp_path)
+    )
+    harness._begin_run("go")
+    plan = harness._plan()
+    plan.send(None)
+
+    with pytest.raises(TypeError, match="CallProvider must be answered"):
+        plan.send(None)
+
+
+def test_a_tool_request_answered_with_none_fails_loudly(tmp_path):
+    harness = Harness(
+        adapter=FakeAdapter([]),
+        system="sys",
+        tools=[echo_spec()],
+        run_dir=str(tmp_path),
+    )
+    harness._begin_run("go")
+    plan = harness._plan()
+    plan.send(None)
+    plan.send(Ok(FakeAdapter.tool_use("tu_1", "echo", {"value": "hi"})))
+
+    with pytest.raises(TypeError, match="CallTool must be answered"):
+        plan.send(None)
+
+
+def test_a_new_run_clears_the_previous_result(tmp_path):
+    """`last_result` must not survive into a run that has not finished.
+
+    Otherwise an abandoned stream appears to have completed, reporting the
+    previous run's tokens and answer.
+    """
+    harness = Harness(
+        adapter=FakeAdapter([FakeAdapter.text("first")]),
+        system="sys",
+        tools=[],
+        run_dir=str(tmp_path),
+    )
+    harness.run("go")
+    assert harness.last_result is not None
+
+    harness._begin_run("again")
+    plan = harness._plan()
+    plan.send(None)
+
+    assert harness.last_result is None
+    plan.close()
+
+
+# ── abandoning a stream through the public entry points ─────────────────────
+
+
+class _TrackingAdapter(FakeAsyncAdapter):
+    """Records whether its stream generator was finalised."""
+
+    def __init__(self, responses):
+        super().__init__(responses)
+        self.closed: list[bool] = []
+
+    async def stream_events(self, system, messages, tools):
+        try:
+            async for evt in super().stream_events(system, messages, tools):
+                yield evt
+        finally:
+            self.closed.append(True)
+
+
+@pytest.mark.asyncio
+async def test_abandoning_an_agent_stream_closes_the_provider_stream(tmp_path):
+    """The fix has to hold at the layer callers actually use.
+
+    Closing a generator does not close the one it iterates, so wrapping only
+    `AsyncHarness.run_stream` left every `AsyncAgent` caller leaking the
+    provider's connection. A harness-level test cannot see that.
+    """
+    adapter = _TrackingAdapter([FakeAsyncAdapter.text("hello there")])
+    agent = AsyncAgent(adapter=adapter, system="sys", run_dir=str(tmp_path))
+
+    stream = agent.run_stream("go")
+    async for _ in stream:
+        break
+    await stream.aclose()
+
+    assert adapter.closed == [True]
+
+
+@pytest.mark.asyncio
+async def test_abandoning_a_session_stream_closes_the_provider_stream(tmp_path):
+    adapter = _TrackingAdapter([FakeAsyncAdapter.text("hello there")])
+    session = AsyncAgent(
+        adapter=adapter, system="sys", run_dir=str(tmp_path)
+    ).async_session()
+
+    stream = session.ask_stream("go")
+    async for _ in stream:
+        break
+    await stream.aclose()
+
+    assert adapter.closed == [True]
+
+
+@pytest.mark.asyncio
+async def test_streamed_agent_runs_are_stamped(tmp_path):
+    """`run_stream` must stamp a run id like every other entry point."""
+    agent = AsyncAgent(
+        adapter=FakeAsyncAdapter([FakeAsyncAdapter.text("done")]),
+        system="sys",
+        run_dir=str(tmp_path),
+    )
+
+    async for _ in agent.run_stream("go"):
+        pass
+
+    assert agent.last_result is not None
+    assert agent.last_result.run_id is not None
+
+
+@pytest.mark.asyncio
+async def test_a_replay_hit_is_readable_through_last_result(tmp_path):
+    """A cache hit builds no harness, so `last_harness` cannot be the answer."""
+    pd = pytest.importorskip("pandas")
+    shared = tmp_path / "replay.json"
+
+    def build(responses):
+        return AsyncAgent.from_dataframe(
+            pd.DataFrame({"a": [1, 2, 3]}),
+            adapter=FakeAsyncAdapter(responses),
+            run_dir=str(tmp_path),
+        ).enable_cache(str(shared))
+
+    warming = build(
+        [
+            FakeAsyncAdapter.tool_use(
+                "tu_1", "python_interpreter", {"code": "answer(6)"}
+            ),
+            FakeAsyncAdapter.text("The answer is 6"),
+        ]
+    )
+    async for _ in warming.run_stream("total"):
+        pass
+
+    # A fresh agent has never built a harness, which is exactly the case that
+    # made the old docstring's `last_harness.last_result` an AttributeError.
+    fresh = build([])
+    assert fresh.last_harness is None
+
+    async for _ in fresh.run_stream("total"):
+        pass
+
+    assert fresh.last_result is not None
+    assert fresh.last_result.text == "The answer is 6"

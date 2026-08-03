@@ -35,9 +35,10 @@ def make_subagent_spec(
     """Create a subagent tool with an explicit cache boundary.
 
     ``adapter_factory`` may return either a `ProviderAdapter` or an
-    `AsyncProviderAdapter`; a synchronous one is bridged onto the async loop.
-    The tool handler itself stays synchronous, so it works identically whether
-    the parent is an `Agent` or an `AsyncAgent`.
+    `AsyncProviderAdapter`. Whichever it returns picks the matching driver, so
+    a sync adapter runs on the calling thread rather than being pushed through
+    an event loop. The tool handler itself stays synchronous, so it works
+    identically whether the parent is an `Agent` or an `AsyncAgent`.
 
     If parent_tools include cache-bound wrappers such as ConnectorRegistry
     wrapped specs, pass make_sub_tools so those handlers can be rebuilt against

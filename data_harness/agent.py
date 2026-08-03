@@ -19,6 +19,7 @@ import asyncio
 import functools
 import uuid
 from collections.abc import AsyncGenerator, Callable
+from contextlib import aclosing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
@@ -245,7 +246,9 @@ class _AgentBase:
         Args:
             adapter_factory: Zero-argument callable returning a fresh adapter
                 for each subagent. Either a `ProviderAdapter` or an
-                `AsyncProviderAdapter`; sync ones are bridged automatically.
+                `AsyncProviderAdapter`; whichever it returns picks the matching
+                driver, so a sync adapter keeps the parent's threading
+                semantics.
 
         Returns:
             ``self``, for method chaining.
@@ -737,10 +740,13 @@ class AsyncAgent(_AgentBase):
         Yields StreamEvent objects (message_start, content_block_*, message_delta,
         message_stop, tool_result) following the Claude Agent SDK protocol.
 
-        After the generator is exhausted, ``agent.last_harness.last_result``
-        holds the `RunResult` for the run, including token usage. A replay-cache
-        hit yields the cached answer as a single synthetic text block and
-        reports zero usage, so a streaming caller sees the same answer a
+        After the generator is exhausted, ``agent.last_result`` holds the
+        `RunResult` for the run, including token usage. Read it there rather
+        than through ``last_harness``: a replay-cache hit builds no harness, so
+        ``last_harness`` is either ``None`` or left over from an earlier run.
+
+        A cache hit yields the cached answer as a single synthetic text block
+        and reports zero usage, so a streaming caller sees the same answer a
         non-streaming one would.
 
         Usage::
@@ -751,6 +757,7 @@ class AsyncAgent(_AgentBase):
                     if isinstance(event.delta, TextDelta):
                         print(event.delta.text, end="", flush=True)
         """
+        run_id = str(uuid.uuid4())
         key = self._replay_key(user_message)
         if key is not None:
             cached = self._exec_cache.get(key)
@@ -762,11 +769,15 @@ class AsyncAgent(_AgentBase):
 
         harness = self._make_harness()
         self._last_harness = harness
-        async for event in harness.run_stream(user_message):
-            yield event
+        # `aclosing`, not a bare `async for`: closing this generator does not
+        # close the one it iterates, so abandoning the stream here would leave
+        # the harness (and the provider's HTTP stream) suspended.
+        async with aclosing(harness.run_stream(user_message)) as events:
+            async for event in events:
+                yield event
         self._last_run_file = harness.run_file
         if harness.last_result is not None:
-            self._last_result = harness.last_result
+            self._last_result = harness._stamp(harness.last_result, run_id, None)
             self._record_replay(key, harness, harness.last_result)
 
     def _make_harness(
@@ -933,8 +944,9 @@ class AsyncAgentSession(_SessionBase):
         as a non-streamed turn would be.
         """
         run_id = str(uuid.uuid4())
-        async for event in self._harness.ask_stream(user_message):
-            yield event
+        async with aclosing(self._harness.ask_stream(user_message)) as events:
+            async for event in events:
+                yield event
         result = self._harness.last_result
         if result is not None:
             self._record(self._harness._stamp(result, run_id, self._id))
