@@ -1,19 +1,27 @@
 """The ReAct loop.
 
-There is exactly one loop implementation: `AsyncHarness._turns`. Everything
-else in this module is a facade over it.
+There is exactly one loop implementation: `_HarnessBase._plan`. It is a
+generator that owns every decision in a turn (reminders, message assembly,
+tool gating, logging, when to stop, what the `RunResult` says) and performs no
+I/O itself. Instead it *asks* for I/O by yielding an effect:
 
-- `AsyncHarness.run_result` / `ask_result` drain the loop and return a
-  `RunResult`.
-- `AsyncHarness.run_stream` / `ask_stream` yield the loop's `StreamEvent`s and
-  leave the `RunResult` on `last_result`.
-- `Harness` is the synchronous facade: it bridges a sync `ProviderAdapter` onto
-  the async loop and drives it to completion.
+- `CallProvider` — run one provider turn, send back a `NormalizedResponse`
+- `CallTool` — invoke one tool handler, send back its return value
+- `ToolFinished` — a tool result block is ready, emit an event if you want one
 
-Before this collapse there were four near-copies of the loop (sync/async x
-result/stream) that had already drifted apart: the streaming path silently
-dropped token usage on provider errors, and `AsyncAgent` was missing features
-`Agent` had. One implementation means one place for behaviour to live.
+Either failure is sent back in as `Failed(exc)`; the loop decides what that
+means. Two drivers perform those effects:
+
+- `Harness` runs everything inline on the calling thread. No event loop is
+  created, so `KeyboardInterrupt` interrupts promptly, handlers keep their
+  thread affinity (a `sqlite3` connection built at setup still works), and the
+  caller's ambient event loop is untouched.
+- `AsyncHarness` awaits the provider, offloads blocking handlers to
+  `asyncio.to_thread` so they cannot stall the event loop, and can stream.
+
+This replaced four near-copies of the loop (sync/async x result/stream) that
+had already drifted: the streaming copy swallowed provider errors without
+recording the tokens it had already spent.
 """
 
 from __future__ import annotations
@@ -22,7 +30,9 @@ import asyncio
 import concurrent.futures
 import dataclasses
 import functools
-from collections.abc import AsyncGenerator, Callable, Coroutine
+import warnings
+from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
+from dataclasses import dataclass
 from typing import Any, Literal, TypeVar, cast
 
 from data_harness.cache import SessionCache
@@ -58,6 +68,53 @@ _MAX_TURN_REMINDER = (
 _T = TypeVar("_T")
 
 
+# ── effects ─────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class CallProvider:
+    """Run one provider turn. Send back a `NormalizedResponse` or `Failed`."""
+
+    system: str
+    messages: list[Message]
+    tools: list[ToolSpec]
+
+
+@dataclass(frozen=True)
+class CallTool:
+    """Invoke one tool handler. Send back its return value or `Failed`."""
+
+    tool_use_id: str
+    tool_name: str
+    handler: Callable[..., Any]
+    tool_input: dict
+
+
+@dataclass(frozen=True)
+class ToolFinished:
+    """A tool result block is ready. Send back ``None``.
+
+    Emitted for every result, including tool-not-found and gate-blocked calls,
+    so a streaming driver can surface them all.
+    """
+
+    tool_name: str
+    block: ToolResultBlock
+
+
+@dataclass(frozen=True)
+class Failed:
+    """An effect raised. The loop, not the driver, decides what that means."""
+
+    error: BaseException
+
+
+Effect = CallProvider | CallTool | ToolFinished
+
+
+# ── helpers ─────────────────────────────────────────────────────────────────
+
+
 def _evaluate_code_gate(
     on_code: Callable[[str], object] | None,
     code_only: bool,
@@ -79,18 +136,43 @@ def _evaluate_code_gate(
     return None
 
 
+def _ambient_event_loop() -> asyncio.AbstractEventLoop | None:
+    """The loop installed on this thread, without installing one as a side effect."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        try:
+            return asyncio.get_event_loop_policy().get_event_loop()
+        except RuntimeError:
+            return None
+
+
 def run_coroutine_blocking(coro: Coroutine[Any, Any, _T]) -> _T:
     """Run ``coro`` to completion from synchronous code.
 
-    Uses `asyncio.run` when no event loop is running. When one already is (a
-    Jupyter kernel, an async web handler calling into sync code), `asyncio.run`
-    would raise, so the coroutine is handed to a dedicated worker thread with
-    its own loop instead.
+    Only needed when synchronous code must drive something inherently async
+    (an `AsyncProviderAdapter`, an async tool handler). The synchronous
+    `Harness` does not use this for its own loop.
+
+    Restores whatever event loop was installed on the calling thread, because
+    `asyncio.run` otherwise clears it. When a loop is already *running*, the
+    coroutine goes to a worker thread with its own loop, since `asyncio.run`
+    cannot be nested.
     """
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(coro)
+        previous = _ambient_event_loop()
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(coro)
+        finally:
+            try:
+                loop.run_until_complete(loop.shutdown_asyncgens())
+            finally:
+                loop.close()
+                asyncio.set_event_loop(previous)
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         return pool.submit(asyncio.run, coro).result()
 
@@ -98,10 +180,10 @@ def run_coroutine_blocking(coro: Coroutine[Any, Any, _T]) -> _T:
 class _SyncAdapterBridge(AsyncProviderAdapter):
     """Presents a synchronous `ProviderAdapter` as an `AsyncProviderAdapter`.
 
-    Used only by the synchronous `Harness` facade, which owns its own event
-    loop. The provider call is made inline rather than on a worker thread:
-    nothing else is scheduled on that loop, so blocking it is harmless and it
-    keeps provider calls on the caller's thread exactly as before the collapse.
+    The wrapped call is made inline, so it *blocks the event loop it runs on*
+    for the duration of the provider request. That is fine on a loop created
+    solely to drive one run, and wrong on a shared application loop. Prefer a
+    real async adapter anywhere concurrency matters.
     """
 
     def __init__(self, adapter: ProviderAdapter) -> None:
@@ -124,51 +206,27 @@ def as_async_adapter(
 ) -> AsyncProviderAdapter:
     """Return ``adapter`` as an async adapter, bridging a synchronous one.
 
-    Lets callers accept either adapter kind without branching. The bridge is a
-    pass-through for adapters that are already async.
+    The bridge blocks its event loop during provider calls; see
+    `_SyncAdapterBridge`. Pass an adapter that is already async when the loop
+    is shared with anything else.
     """
     if isinstance(adapter, AsyncProviderAdapter):
         return adapter
     return _SyncAdapterBridge(adapter)
 
 
-class AsyncHarness:
-    """The core ReAct loop.
+# ── the loop ────────────────────────────────────────────────────────────────
 
-    `AsyncHarness` owns the message list, dispatches tools, applies suffix-only
-    reminder hooks, and logs every turn to a JSONL file. It is the central
-    implementation boundary in data-harness: everything above it (`Agent`,
-    `AgentSession`) is a convenience layer; everything below it
-    (`AsyncProviderAdapter`, `SessionCache`, `ToolSpec`) is a pure dependency.
 
-    The system prompt is never mutated between turns. Reminders, nags, and
-    dynamic state are always appended to the conversation suffix so the
-    provider's KV cache is not invalidated.
+class _HarnessBase:
+    """Loop state, pure turn logic, and the effect generator.
 
-    For most use cases, prefer `AsyncAgent` over constructing `AsyncHarness`
-    directly. Use `AsyncHarness` when you need full control over tool wiring,
-    as shown in ``examples/advanced_wiring.py``.
-
-    Args:
-        adapter: Async provider adapter that translates provider SDK objects
-            into harness types.
-        system: System prompt. Kept byte-identical across all turns.
-        tools: Full tool list. Invisible tools (``visible=False``) are excluded
-            from the provider call but can still be dispatched.
-        max_turns: Hard cap on provider turns before the loop stops and returns
-            a ``"max_turns_exceeded"`` result.
-        run_dir: Directory where JSONL logs are written. Created on first run.
-        cache: Shared `SessionCache`. A fresh cache is created if ``None``.
-        on_code: Optional approval gate called with interpreter code before it
-            runs. Return ``False`` to block, or a string to return that string
-            to the model instead of executing.
-        code_only: When ``True``, interpreter code is echoed back as a dry run
-            and never executed.
+    Both `Harness` and `AsyncHarness` inherit this, so the loop exists once and
+    subclasses of either see the same state and the same overridable seams.
     """
 
     def __init__(
         self,
-        adapter: AsyncProviderAdapter,
         system: str,
         tools: list[ToolSpec],
         max_turns: int = 25,
@@ -179,7 +237,6 @@ class AsyncHarness:
     ) -> None:
         if max_turns < 1:
             raise ValueError(f"max_turns must be at least 1, got {max_turns!r}")
-        self._adapter = adapter
         self._system = system
         self._tools = list(tools)
         self._max_turns = max_turns
@@ -203,6 +260,11 @@ class AsyncHarness:
         """
         self._reminders.append(hook)
 
+    # ── inspection ──────────────────────────────────────────────────────────
+    #
+    # `tools`, `messages`, and `reminders` return the live lists: mutating them
+    # mutates the harness, which is how tools get added to a live session.
+
     @property
     def run_file(self) -> str | None:
         """Path to the JSONL log for this run, or ``None`` before the first run."""
@@ -213,17 +275,10 @@ class AsyncHarness:
         """`RunResult` for the most recently completed loop, including streamed ones.
 
         Streaming callers get their token usage, cache snapshots, charts, and
-        error status from here: the event protocol itself carries no run-level
-        summary.
+        error status from here: the event protocol carries no run-level summary.
+        Stays ``None`` if a stream is abandoned before it is exhausted.
         """
         return self._last_result
-
-    # ── inspection ──────────────────────────────────────────────────────────
-    #
-    # The loop's state is readable so callers can assert on what the model was
-    # actually shown. `tools`, `messages`, and `reminders` return the live
-    # lists: mutating them mutates the harness, which is how tools are added
-    # to an already-constructed session.
 
     @property
     def system(self) -> str:
@@ -255,111 +310,7 @@ class AsyncHarness:
         """Registered suffix reminder hooks, in registration order."""
         return self._reminders
 
-    # ── entry points ────────────────────────────────────────────────────────
-
-    async def run_result(
-        self,
-        user_message: str,
-        *,
-        run_id: str | None = None,
-        session_id: str | None = None,
-    ) -> RunResult:
-        """Start a fresh run and return the full `RunResult`.
-
-        Resets message history. Use `ask_result` for follow-up turns on the
-        same history.
-
-        Args:
-            user_message: The initial user prompt.
-            run_id: Optional identifier stamped into the `RunResult`.
-            session_id: Optional session identifier stamped into the `RunResult`.
-
-        Returns:
-            A `RunResult` describing the outcome, token usage, and cache state.
-        """
-        self._begin_run(user_message)
-        result = await self._drain(stream=False)
-        return self._stamp(result, run_id, session_id)
-
-    async def ask_result(
-        self,
-        user_message: str,
-        *,
-        run_id: str | None = None,
-        session_id: str | None = None,
-    ) -> RunResult:
-        """Append a follow-up message and continue the existing run.
-
-        Appends ``user_message`` to the current history without resetting it.
-
-        Args:
-            user_message: The follow-up user prompt.
-            run_id: Optional identifier stamped into the `RunResult`.
-            session_id: Optional session identifier stamped into the `RunResult`.
-
-        Returns:
-            A `RunResult` describing the outcome of this turn sequence.
-        """
-        self._begin_ask(user_message)
-        result = await self._drain(stream=False)
-        return self._stamp(result, run_id, session_id)
-
-    async def run(self, user_message: str) -> str:
-        """Start a fresh run and return the final text response.
-
-        Args:
-            user_message: The initial user prompt.
-
-        Returns:
-            The model's final text response.
-
-        Raises:
-            MaxTurnsExceeded: If the loop reaches ``max_turns`` without stopping.
-            RuntimeError: If the provider raises an exception during the run.
-        """
-        return _unwrap(await self.run_result(user_message))
-
-    async def ask(self, user_message: str) -> str:
-        """Append a follow-up message and return the final text response.
-
-        Args:
-            user_message: The follow-up user prompt.
-
-        Returns:
-            The model's final text response.
-
-        Raises:
-            MaxTurnsExceeded: If the loop reaches ``max_turns`` without stopping.
-            RuntimeError: If the provider raises an exception during the run.
-        """
-        return _unwrap(await self.ask_result(user_message))
-
-    async def run_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
-        """Stream events for a one-shot run.
-
-        Yields StreamEvent objects following the same protocol as the Claude
-        Agent SDK. Each provider turn emits message_start,
-        content_block_start/delta/stop, message_delta, and message_stop events.
-        After the harness dispatches a tool call a ToolResultEvent is emitted.
-        The JSONL logger records fully assembled messages, not individual events.
-
-        When the generator is exhausted, `last_result` holds the `RunResult`
-        for the run, including token usage and any error.
-        """
-        self._begin_run(user_message)
-        async for event in self._turns(stream=True):
-            yield event
-
-    async def ask_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
-        """Stream events for a follow-up turn in a session.
-
-        When the generator is exhausted, `last_result` holds the `RunResult`.
-        """
-        self._begin_ask(user_message)
-        async for event in self._turns(stream=True):
-            yield event
-
-    # ── loop plumbing ───────────────────────────────────────────────────────
+    # ── run setup ───────────────────────────────────────────────────────────
 
     def _begin_run(self, user_message: str) -> None:
         self._run_file = setup_logger(self._run_dir)
@@ -372,14 +323,6 @@ class AsyncHarness:
             Message(role="user", content=[TextBlock(text=user_message)])
         )
 
-    async def _drain(self, *, stream: bool) -> RunResult:
-        async for _ in self._turns(stream=stream):
-            pass
-        result = self._last_result
-        if result is None:  # pragma: no cover - _turns always sets a result
-            raise RuntimeError("loop finished without producing a result")
-        return result
-
     def _stamp(
         self, result: RunResult, run_id: str | None, session_id: str | None
     ) -> RunResult:
@@ -387,13 +330,12 @@ class AsyncHarness:
         self._last_result = stamped
         return stamped
 
-    async def _turns(self, *, stream: bool) -> AsyncGenerator[StreamEvent, None]:
-        """The loop. The only one.
+    # ── the loop ────────────────────────────────────────────────────────────
 
-        ``stream`` selects how a turn's response is obtained: real provider
-        stream events, or a single assembled `chat` call. Every other concern
-        (reminders, tool dispatch, logging, result construction, error
-        handling) is shared.
+    def _plan(self) -> Generator[Effect, Any, None]:
+        """Drive one run, yielding the I/O it needs. The only loop in the library.
+
+        Sets `last_result` before returning, on every exit path.
         """
         if self._run_file is None:
             raise RuntimeError("run_file must be initialised before running the loop")
@@ -405,42 +347,32 @@ class AsyncHarness:
             self._apply_reminders(turn)
             visible_tools = [t for t in self._tools if t.visible]
 
-            events_this_turn: list[StreamEvent] = []
             with time_block() as tb:
-                try:
-                    if stream:
-                        async for evt in self._adapter.stream_events(
-                            system=self._system,
-                            messages=self._messages,
-                            tools=visible_tools,
-                        ):
-                            events_this_turn.append(evt)
-                            yield evt
-                        response = accumulate_stream_events(events_this_turn)
-                    else:
-                        response = await self._adapter.chat(
-                            system=self._system,
-                            messages=self._messages,
-                            tools=visible_tools,
-                        )
-                except Exception as exc:
-                    log_error_turn(
-                        turn=turn,
-                        system=self._system,
-                        messages=self._messages,
-                        error=repr(exc),
-                        run_file=self._run_file,
-                    )
-                    self._last_result = self._build_result(
-                        text="",
-                        status="error",
-                        turns=turn,
-                        stop_reason=None,
-                        usage=total_usage,
-                        error=repr(exc),
-                    )
-                    return
+                outcome = yield CallProvider(
+                    system=self._system,
+                    messages=self._messages,
+                    tools=visible_tools,
+                )
 
+            if isinstance(outcome, Failed):
+                log_error_turn(
+                    turn=turn,
+                    system=self._system,
+                    messages=self._messages,
+                    error=repr(outcome.error),
+                    run_file=self._run_file,
+                )
+                self._last_result = self._build_result(
+                    text="",
+                    status="error",
+                    turns=turn,
+                    stop_reason=None,
+                    usage=total_usage,
+                    error=repr(outcome.error),
+                )
+                return
+
+            response: NormalizedResponse = outcome
             latency = tb.elapsed_ms
 
             total_usage = total_usage + Usage(
@@ -455,22 +387,12 @@ class AsyncHarness:
             tool_results: list[ToolResultBlock] = []
 
             if response.stop_reason == StopReason.TOOL_USE:
-                tool_results = await self._dispatch_tools(response.content)
-
-                if stream:
-                    tool_name_map = {
-                        b.tool_use_id: b.tool_name
-                        for b in response.content
-                        if isinstance(b, ToolUseBlock)
-                    }
-                    for result_block in tool_results:
-                        yield ToolResultEvent(
-                            tool_use_id=result_block.tool_use_id,
-                            tool_name=tool_name_map.get(result_block.tool_use_id, ""),
-                            content=result_block.content,
-                            is_error=result_block.is_error,
-                        )
-
+                # Every tool is dispatched before any result is announced, so a
+                # streaming consumer sees the same ordering it always has.
+                finished = yield from self._dispatch(response.content)
+                tool_results = [block for _, block in finished]
+                for tool_name, block in finished:
+                    yield ToolFinished(tool_name=tool_name, block=block)
                 self._messages.append(Message(role="user", content=list(tool_results)))
 
             log_turn(
@@ -506,6 +428,95 @@ class AsyncHarness:
                     usage=total_usage,
                 )
                 return
+
+    def _dispatch(
+        self, content: list
+    ) -> Generator[Effect, Any, list[tuple[str, ToolResultBlock]]]:
+        """Turn the assistant's tool-use blocks into result blocks, in order."""
+        tool_map = {t.name: t for t in self._tools}
+        finished: list[tuple[str, ToolResultBlock]] = []
+
+        for tub in (b for b in content if isinstance(b, ToolUseBlock)):
+            spec = tool_map.get(tub.tool_name)
+            if spec is None or spec.handler is None:
+                finished.append(
+                    (
+                        tub.tool_name,
+                        ToolResultBlock(
+                            tool_use_id=tub.tool_use_id,
+                            content=f"Tool not found: {tub.tool_name!r}",
+                            is_error=True,
+                        ),
+                    )
+                )
+                continue
+
+            if tub.tool_name == "python_interpreter":
+                gate = _evaluate_code_gate(
+                    self._on_code, self._code_only, tub.tool_input.get("code", "")
+                )
+                if gate is not None:
+                    finished.append(
+                        (
+                            tub.tool_name,
+                            ToolResultBlock(
+                                tool_use_id=tub.tool_use_id,
+                                content=gate,
+                                is_error=False,
+                            ),
+                        )
+                    )
+                    continue
+
+            raw = yield CallTool(
+                tool_use_id=tub.tool_use_id,
+                tool_name=tub.tool_name,
+                handler=spec.handler,
+                tool_input=tub.tool_input,
+            )
+
+            if isinstance(raw, Failed):
+                finished.append(
+                    (
+                        tub.tool_name,
+                        ToolResultBlock(
+                            tool_use_id=tub.tool_use_id,
+                            content=repr(raw.error),
+                            is_error=True,
+                        ),
+                    )
+                )
+                continue
+
+            try:
+                output = format_tool_output(raw, cache=self._cache)
+            except Exception as exc:  # noqa: BLE001 - surfaced to the model
+                finished.append(
+                    (
+                        tub.tool_name,
+                        ToolResultBlock(
+                            tool_use_id=tub.tool_use_id,
+                            content=repr(exc),
+                            is_error=True,
+                        ),
+                    )
+                )
+                continue
+
+            finished.append(
+                (
+                    tub.tool_name,
+                    ToolResultBlock(
+                        tool_use_id=tub.tool_use_id,
+                        content=output,
+                        is_error=False,
+                    ),
+                )
+            )
+
+        return finished
+
+    # ── pure helpers ────────────────────────────────────────────────────────
 
     def _build_result(
         self,
@@ -564,83 +575,42 @@ class AsyncHarness:
         else:
             self._messages.append(Message(role="user", content=[reminder_block]))
 
-    async def _dispatch_tools(self, content: list) -> list[ToolResultBlock]:
-        tool_uses = [b for b in content if isinstance(b, ToolUseBlock)]
-        results: list[ToolResultBlock] = []
-        tool_map = {t.name: t for t in self._tools}
 
-        for tub in tool_uses:
-            spec = tool_map.get(tub.tool_name)
-            if spec is None or spec.handler is None:
-                results.append(
-                    ToolResultBlock(
-                        tool_use_id=tub.tool_use_id,
-                        content=f"Tool not found: {tub.tool_name!r}",
-                        is_error=True,
-                    )
-                )
-                continue
-            if tub.tool_name == "python_interpreter":
-                gate = _evaluate_code_gate(
-                    self._on_code, self._code_only, tub.tool_input.get("code", "")
-                )
-                if gate is not None:
-                    results.append(
-                        ToolResultBlock(
-                            tool_use_id=tub.tool_use_id,
-                            content=gate,
-                            is_error=False,
-                        )
-                    )
-                    continue
-            try:
-                if asyncio.iscoroutinefunction(spec.handler):
-                    raw = await spec.handler(**tub.tool_input)
-                else:
-                    raw = await asyncio.to_thread(
-                        functools.partial(spec.handler, **tub.tool_input)
-                    )
-                output = format_tool_output(raw, cache=self._cache)
-            except Exception as exc:
-                results.append(
-                    ToolResultBlock(
-                        tool_use_id=tub.tool_use_id,
-                        content=repr(exc),
-                        is_error=True,
-                    )
-                )
-                continue
-            results.append(
-                ToolResultBlock(
-                    tool_use_id=tub.tool_use_id,
-                    content=output,
-                    is_error=False,
-                )
-            )
+class Harness(_HarnessBase):
+    """The synchronous driver for the loop.
 
-        return results
+    Runs the provider call and every tool handler inline on the calling
+    thread. No event loop is created, so `KeyboardInterrupt` lands promptly and
+    handlers keep whatever thread affinity they were built with (a `sqlite3`
+    connection opened at setup keeps working). The only exception is an
+    ``async def`` tool handler, which necessarily needs a loop.
 
+    `Harness` owns the message list, dispatches tools, applies suffix-only
+    reminder hooks, and logs every turn to a JSONL file. It is the central
+    implementation boundary in data-harness: everything above it (`Agent`,
+    `AgentSession`) is a convenience layer; everything below it
+    (`ProviderAdapter`, `SessionCache`, `ToolSpec`) is a pure dependency.
 
-class Harness:
-    """Synchronous facade over `AsyncHarness`.
+    The system prompt is never mutated between turns. Reminders, nags, and
+    dynamic state are always appended to the conversation suffix so the
+    provider's KV cache is not invalidated.
 
-    Holds no loop logic of its own: it wraps the supplied synchronous
-    `ProviderAdapter` in an async bridge and drives `AsyncHarness` to
-    completion. Behaviour matches `AsyncHarness` exactly, because it *is*
-    `AsyncHarness`.
-
-    Safe to call from inside a running event loop (a Jupyter kernel, for
-    instance); the loop is then driven on a dedicated worker thread.
+    For most use cases, prefer `Agent` over constructing `Harness` directly.
+    Use `Harness` when you need full control over tool wiring, as shown in
+    ``examples/advanced_wiring.py``.
 
     Args:
-        adapter: Synchronous provider adapter.
+        adapter: Synchronous provider adapter that translates provider SDK
+            objects into harness types.
         system: System prompt. Kept byte-identical across all turns.
-        tools: Full tool list.
-        max_turns: Hard cap on provider turns.
-        run_dir: Directory where JSONL logs are written.
+        tools: Full tool list. Invisible tools (``visible=False``) are excluded
+            from the provider call but can still be dispatched.
+        max_turns: Hard cap on provider turns before the loop stops and returns
+            a ``"max_turns_exceeded"`` result.
+        run_dir: Directory where JSONL logs are written. Created on first run.
         cache: Shared `SessionCache`. A fresh cache is created if ``None``.
-        on_code: Optional approval gate for interpreter code.
-        code_only: When ``True``, interpreter code is never executed.
+        on_code: Approval gate called with interpreter code before it runs.
+        code_only: When ``True``, interpreter code is echoed, never executed.
     """
 
     def __init__(
@@ -654,8 +624,7 @@ class Harness:
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
     ) -> None:
-        self._inner = AsyncHarness(
-            adapter=_SyncAdapterBridge(adapter),
+        super().__init__(
             system=system,
             tools=tools,
             max_turns=max_turns,
@@ -666,50 +635,6 @@ class Harness:
         )
         self._adapter = adapter
 
-    def register_reminder(self, hook: Callable[[int, int], str | None]) -> None:
-        """Register a suffix reminder hook called before each provider turn."""
-        self._inner.register_reminder(hook)
-
-    @property
-    def run_file(self) -> str | None:
-        """Path to the JSONL log for this run, or ``None`` before the first run."""
-        return self._inner.run_file
-
-    @property
-    def last_result(self) -> RunResult | None:
-        """`RunResult` for the most recently completed run."""
-        return self._inner.last_result
-
-    @property
-    def system(self) -> str:
-        """The system prompt. Byte-identical across every turn of a run."""
-        return self._inner.system
-
-    @property
-    def tools(self) -> list[ToolSpec]:
-        """The full tool list, including invisible tools. Live and mutable."""
-        return self._inner.tools
-
-    @property
-    def max_turns(self) -> int:
-        """Hard cap on provider turns per run."""
-        return self._inner.max_turns
-
-    @property
-    def cache(self) -> SessionCache:
-        """The `SessionCache` backing tool results and handles."""
-        return self._inner.cache
-
-    @property
-    def messages(self) -> list[Message]:
-        """The conversation history the model sees. Live and mutable."""
-        return self._inner.messages
-
-    @property
-    def reminders(self) -> list[Callable[[int, int], str | None]]:
-        """Registered suffix reminder hooks, in registration order."""
-        return self._inner.reminders
-
     def run_result(
         self,
         user_message: str,
@@ -717,10 +642,21 @@ class Harness:
         run_id: str | None = None,
         session_id: str | None = None,
     ) -> RunResult:
-        """Start a fresh run and return the full `RunResult`."""
-        return run_coroutine_blocking(
-            self._inner.run_result(user_message, run_id=run_id, session_id=session_id)
-        )
+        """Start a fresh run and return the full `RunResult`.
+
+        Resets message history. Use `ask_result` for follow-up turns on the
+        same history.
+
+        Args:
+            user_message: The initial user prompt.
+            run_id: Optional identifier stamped into the `RunResult`.
+            session_id: Optional session identifier stamped into the `RunResult`.
+
+        Returns:
+            A `RunResult` describing the outcome, token usage, and cache state.
+        """
+        self._begin_run(user_message)
+        return self._stamp(self._drive(), run_id, session_id)
 
     def ask_result(
         self,
@@ -729,13 +665,27 @@ class Harness:
         run_id: str | None = None,
         session_id: str | None = None,
     ) -> RunResult:
-        """Append a follow-up message and continue the existing run."""
-        return run_coroutine_blocking(
-            self._inner.ask_result(user_message, run_id=run_id, session_id=session_id)
-        )
+        """Append a follow-up message and continue the existing run.
+
+        Args:
+            user_message: The follow-up user prompt.
+            run_id: Optional identifier stamped into the `RunResult`.
+            session_id: Optional session identifier stamped into the `RunResult`.
+
+        Returns:
+            A `RunResult` describing the outcome of this turn sequence.
+        """
+        self._begin_ask(user_message)
+        return self._stamp(self._drive(), run_id, session_id)
 
     def run(self, user_message: str) -> str:
         """Start a fresh run and return the final text response.
+
+        Args:
+            user_message: The initial user prompt.
+
+        Returns:
+            The model's final text response.
 
         Raises:
             MaxTurnsExceeded: If the loop reaches ``max_turns`` without stopping.
@@ -746,11 +696,234 @@ class Harness:
     def ask(self, user_message: str) -> str:
         """Append a follow-up message and return the final text response.
 
+        Args:
+            user_message: The follow-up user prompt.
+
+        Returns:
+            The model's final text response.
+
         Raises:
             MaxTurnsExceeded: If the loop reaches ``max_turns`` without stopping.
             RuntimeError: If the provider raises an exception during the run.
         """
         return _unwrap(self.ask_result(user_message))
+
+    # ── driver ──────────────────────────────────────────────────────────────
+
+    def _drive(self) -> RunResult:
+        plan = self._plan()
+        sent: Any = None
+        while True:
+            try:
+                effect = plan.send(sent)
+            except StopIteration:
+                break
+            sent = self._perform(effect)
+        result = self._last_result
+        if result is None:  # pragma: no cover - _plan always sets a result
+            raise RuntimeError("loop finished without producing a result")
+        return result
+
+    def _perform(self, effect: Effect) -> Any:
+        if isinstance(effect, CallProvider):
+            try:
+                return self._adapter.chat(
+                    system=effect.system,
+                    messages=effect.messages,
+                    tools=effect.tools,
+                )
+            except Exception as exc:  # noqa: BLE001 - reported as a RunResult
+                return Failed(exc)
+        if isinstance(effect, CallTool):
+            try:
+                return self._call_tool(effect)
+            except Exception as exc:  # noqa: BLE001 - surfaced to the model
+                return Failed(exc)
+        return None
+
+    def _call_tool(self, call: CallTool) -> Any:
+        """Invoke one tool handler on the calling thread.
+
+        The overridable seam for changing dispatch (sandboxing, timeouts,
+        instrumentation). An ``async def`` handler is the one case that needs
+        an event loop, and gets a short-lived one.
+        """
+        if asyncio.iscoroutinefunction(call.handler):
+            return run_coroutine_blocking(call.handler(**call.tool_input))
+        return call.handler(**call.tool_input)
+
+
+class AsyncHarness(_HarnessBase):
+    """The asynchronous driver for the loop.
+
+    Awaits the provider and offloads blocking tool handlers to
+    `asyncio.to_thread`, so a long pandas operation cannot stall the event
+    loop it shares with a web server. Adds token-level streaming.
+
+    Same arguments as `Harness`, but takes an `AsyncProviderAdapter`.
+    """
+
+    def __init__(
+        self,
+        adapter: AsyncProviderAdapter,
+        system: str,
+        tools: list[ToolSpec],
+        max_turns: int = 25,
+        run_dir: str = "./runs",
+        cache: SessionCache | None = None,
+        on_code: Callable[[str], object] | None = None,
+        code_only: bool = False,
+    ) -> None:
+        super().__init__(
+            system=system,
+            tools=tools,
+            max_turns=max_turns,
+            run_dir=run_dir,
+            cache=cache,
+            on_code=on_code,
+            code_only=code_only,
+        )
+        self._adapter = adapter
+
+    async def run_result(
+        self,
+        user_message: str,
+        *,
+        run_id: str | None = None,
+        session_id: str | None = None,
+    ) -> RunResult:
+        """Start a fresh run and return the full `RunResult`."""
+        self._begin_run(user_message)
+        return self._stamp(await self._drain(stream=False), run_id, session_id)
+
+    async def ask_result(
+        self,
+        user_message: str,
+        *,
+        run_id: str | None = None,
+        session_id: str | None = None,
+    ) -> RunResult:
+        """Append a follow-up message and continue the existing run."""
+        self._begin_ask(user_message)
+        return self._stamp(await self._drain(stream=False), run_id, session_id)
+
+    async def run(self, user_message: str) -> str:
+        """Start a fresh run and return the final text response.
+
+        Raises:
+            MaxTurnsExceeded: If the loop reaches ``max_turns`` without stopping.
+            RuntimeError: If the provider raises an exception during the run.
+        """
+        return _unwrap(await self.run_result(user_message))
+
+    async def ask(self, user_message: str) -> str:
+        """Append a follow-up message and return the final text response.
+
+        Raises:
+            MaxTurnsExceeded: If the loop reaches ``max_turns`` without stopping.
+            RuntimeError: If the provider raises an exception during the run.
+        """
+        return _unwrap(await self.ask_result(user_message))
+
+    async def run_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
+        """Stream events for a one-shot run.
+
+        Yields StreamEvent objects following the same protocol as the Claude
+        Agent SDK. Each provider turn emits message_start,
+        content_block_start/delta/stop, message_delta, and message_stop events.
+        After the harness dispatches a tool call a ToolResultEvent is emitted.
+        The JSONL logger records fully assembled messages, not individual events.
+
+        Once the generator is exhausted, `last_result` holds the `RunResult`
+        for the run, including token usage and any error. Abandoning the
+        generator early leaves `last_result` unset.
+        """
+        self._begin_run(user_message)
+        async for event in self._drive(stream=True):
+            yield event
+
+    async def ask_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
+        """Stream events for a follow-up turn in a session.
+
+        Once the generator is exhausted, `last_result` holds the `RunResult`.
+        """
+        self._begin_ask(user_message)
+        async for event in self._drive(stream=True):
+            yield event
+
+    # ── driver ──────────────────────────────────────────────────────────────
+
+    async def _drain(self, *, stream: bool) -> RunResult:
+        async for _ in self._drive(stream=stream):
+            pass
+        result = self._last_result
+        if result is None:  # pragma: no cover - _plan always sets a result
+            raise RuntimeError("loop finished without producing a result")
+        return result
+
+    async def _drive(self, *, stream: bool) -> AsyncGenerator[StreamEvent, None]:
+        plan = self._plan()
+        sent: Any = None
+        while True:
+            try:
+                effect = plan.send(sent)
+            except StopIteration:
+                return
+            sent = None
+
+            if isinstance(effect, CallProvider):
+                if stream:
+                    events: list[StreamEvent] = []
+                    try:
+                        async for evt in self._adapter.stream_events(
+                            system=effect.system,
+                            messages=effect.messages,
+                            tools=effect.tools,
+                        ):
+                            events.append(evt)
+                            yield evt
+                        # Inside the try on purpose: a malformed event stream is
+                        # a provider failure, and should land in the RunResult
+                        # rather than escape the loop.
+                        sent = accumulate_stream_events(events)
+                    except Exception as exc:  # noqa: BLE001 - reported as a RunResult
+                        sent = Failed(exc)
+                else:
+                    try:
+                        sent = await self._adapter.chat(
+                            system=effect.system,
+                            messages=effect.messages,
+                            tools=effect.tools,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - reported as a RunResult
+                        sent = Failed(exc)
+
+            elif isinstance(effect, CallTool):
+                try:
+                    sent = await self._call_tool(effect)
+                except Exception as exc:  # noqa: BLE001 - surfaced to the model
+                    sent = Failed(exc)
+
+            elif isinstance(effect, ToolFinished) and stream:
+                yield ToolResultEvent(
+                    tool_use_id=effect.block.tool_use_id,
+                    tool_name=effect.tool_name,
+                    content=effect.block.content,
+                    is_error=effect.block.is_error,
+                )
+
+    async def _call_tool(self, call: CallTool) -> Any:
+        """Invoke one tool handler without stalling the event loop.
+
+        The overridable seam for changing dispatch. Blocking handlers go to a
+        worker thread, so a handler that needs thread affinity must either be
+        ``async def`` or manage its own resources per call.
+        """
+        if asyncio.iscoroutinefunction(call.handler):
+            return await call.handler(**call.tool_input)
+        return await asyncio.to_thread(
+            functools.partial(call.handler, **call.tool_input)
+        )
 
 
 def _unwrap(result: RunResult) -> str:
@@ -764,3 +937,16 @@ def _unwrap(result: RunResult) -> str:
 
 def _extract_text(response: NormalizedResponse) -> str:
     return "\n".join(b.text for b in response.content if isinstance(b, TextBlock))
+
+
+__all__ = [
+    "AsyncHarness",
+    "CallProvider",
+    "CallTool",
+    "Effect",
+    "Failed",
+    "Harness",
+    "ToolFinished",
+    "as_async_adapter",
+    "run_coroutine_blocking",
+]

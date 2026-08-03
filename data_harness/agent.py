@@ -15,11 +15,13 @@ to be independent copies, which is how `AsyncAgent` silently ended up missing
 
 from __future__ import annotations
 
+import asyncio
+import functools
 import uuid
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from data_harness.cache import SessionCache
 from data_harness.loop import AsyncHarness, Harness, run_coroutine_blocking
@@ -94,6 +96,9 @@ class ConnectorBuilder:
         return fn
 
 
+_SelfT = TypeVar("_SelfT", bound="_AgentBase")
+
+
 class _AgentBase:
     """Configuration, tool wiring, and feature toggles shared by both agents.
 
@@ -140,7 +145,7 @@ class _AgentBase:
 
     @classmethod
     def from_dataframe(
-        cls,
+        cls: type[_SelfT],
         data: Any,
         *,
         adapter: Any = None,
@@ -148,7 +153,7 @@ class _AgentBase:
         system: str | None = None,
         semantics: dict[str, dict] | None = None,
         **kwargs: Any,
-    ):
+    ) -> _SelfT:
         """Build an agent with ``data`` preloaded as cache handles.
 
         Accepts a DataFrame, a ``{name: value}`` mapping, a file path, or a list
@@ -169,7 +174,7 @@ class _AgentBase:
         return agent
 
     @classmethod
-    def from_csv(cls, path: str | Path, **kwargs: Any):
+    def from_csv(cls: type[_SelfT], path: str | Path, **kwargs: Any) -> _SelfT:
         """Build an agent from a CSV (or other supported file) path."""
         return cls.from_dataframe(str(path), **kwargs)
 
@@ -208,7 +213,7 @@ class _AgentBase:
         )
         return ConnectorBuilder(self, name)
 
-    def enable_planner(self):
+    def enable_planner(self: _SelfT) -> _SelfT:
         """Enable the planning tool and suffix-based nag reminders.
 
         The planner escalates reminders at turns 4, 8, and 12 when no progress
@@ -220,7 +225,7 @@ class _AgentBase:
         self._planner_enabled = True
         return self
 
-    def enable_subagents(self, *, adapter_factory: Callable[[], Any]):
+    def enable_subagents(self: _SelfT, *, adapter_factory: Callable[[], Any]) -> _SelfT:
         """Enable the subagent tool, using ``adapter_factory`` for spawned agents.
 
         Each spawned subagent gets a fresh adapter, fresh message history, and
@@ -238,7 +243,7 @@ class _AgentBase:
         self._subagent_factory = adapter_factory
         return self
 
-    def enable_sql(self, *, engine_url: str | None = None):
+    def enable_sql(self: _SelfT, *, engine_url: str | None = None) -> _SelfT:
         """Enable the ``sql_query`` tool.
 
         With no ``engine_url``, queries run via DuckDB in-process over the
@@ -255,7 +260,7 @@ class _AgentBase:
         self._sql_engine_url = engine_url
         return self
 
-    def enable_cache(self, path: Any = None):
+    def enable_cache(self: _SelfT, path: Any = None) -> _SelfT:
         """Enable the code-replay cache.
 
         On a repeat ``run``/``run_result`` with the same question and data
@@ -279,14 +284,14 @@ class _AgentBase:
         return self
 
     def add_mcp_server(
-        self,
+        self: _SelfT,
         name: str,
         command: str | None = None,
         *,
         args: list[str] | None = None,
         env: dict[str, str] | None = None,
         client: Any = None,
-    ):
+    ) -> _SelfT:
         """Connect an MCP server and expose its tools (via progressive disclosure).
 
         The server's tools become a connector named ``name`` — hidden until the
@@ -462,21 +467,19 @@ class _AgentBase:
 
         return make_key(user_message, self._cache, self._system)
 
-    async def _replay(self, cached: Any) -> RunResult:
-        """Re-execute a cached run's recorded tool steps without calling the model."""
+    def _replay_steps(self, cached: Any) -> list[tuple[Callable[..., Any], dict]]:
+        """The dispatchable ``(handler, input)`` pairs recorded by a cached run."""
         tool_map = {t.name: t for t in self._build_tools(cache=self._cache)}
+        steps = []
         for step in cached.steps:
             spec = tool_map.get(step["tool"])
-            if spec is None or spec.handler is None:
-                continue
-            try:
-                await _call_handler(spec.handler, step["input"])
-            except Exception:  # noqa: BLE001
-                # A recorded step may fail against fresh data; skip it rather
-                # than aborting the whole replay.
-                continue
+            if spec is not None and spec.handler is not None:
+                steps.append((spec.handler, step["input"]))
+        return steps
+
+    def _replay_result(self, text: str) -> RunResult:
         return RunResult(
-            text=cached.text,
+            text=text,
             status="success",
             turns=0,
             run_file=None,
@@ -502,15 +505,6 @@ class _AgentBase:
         self._exec_cache.put(
             key, CachedRun(steps=extract_steps(harness.messages), text=result.text)
         )
-
-
-async def _call_handler(handler: Callable[..., Any], tool_input: dict) -> Any:
-    import asyncio
-    import functools
-
-    if asyncio.iscoroutinefunction(handler):
-        return await handler(**tool_input)
-    return await asyncio.to_thread(functools.partial(handler, **tool_input))
 
 
 class Agent(_AgentBase):
@@ -564,6 +558,20 @@ class Agent(_AgentBase):
     def last_harness(self) -> Harness | None:
         return self._last_harness
 
+    def _replay(self, cached: Any) -> RunResult:
+        """Re-execute a cached run's tool steps inline, without calling the model."""
+        for handler, tool_input in self._replay_steps(cached):
+            try:
+                if asyncio.iscoroutinefunction(handler):
+                    run_coroutine_blocking(handler(**tool_input))
+                else:
+                    handler(**tool_input)
+            except Exception:  # noqa: BLE001
+                # A recorded step may fail against fresh data; skip it rather
+                # than aborting the whole replay.
+                continue
+        return self._replay_result(cached.text)
+
     def session(self) -> AgentSession:
         """Create a stateful `AgentSession` for multi-turn conversations.
 
@@ -587,7 +595,7 @@ class Agent(_AgentBase):
         if key is not None:
             cached = self._exec_cache.get(key)
             if cached is not None:
-                return run_coroutine_blocking(self._replay(cached))
+                return self._replay(cached)
 
         harness = self._make_harness()
         self._last_harness = harness
@@ -659,6 +667,20 @@ class AsyncAgent(_AgentBase):
     @property
     def last_harness(self) -> AsyncHarness | None:
         return self._last_harness
+
+    async def _replay(self, cached: Any) -> RunResult:
+        """Re-execute a cached run's tool steps without stalling the event loop."""
+        for handler, tool_input in self._replay_steps(cached):
+            try:
+                if asyncio.iscoroutinefunction(handler):
+                    await handler(**tool_input)
+                else:
+                    await asyncio.to_thread(functools.partial(handler, **tool_input))
+            except Exception:  # noqa: BLE001
+                # A recorded step may fail against fresh data; skip it rather
+                # than aborting the whole replay.
+                continue
+        return self._replay_result(cached.text)
 
     def async_session(self) -> AsyncAgentSession:
         """Create a stateful `AsyncAgentSession` for multi-turn conversations."""

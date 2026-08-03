@@ -434,9 +434,8 @@ class TestAgentPlanner:
 def _subagent_harness(captured):
     """Pick the spawned subagent's harness out of every harness constructed.
 
-    `Harness` is a facade over `AsyncHarness`, so a parent run constructs one
-    too. The subagent is identified by its worker system prompt rather than by
-    construction order, which is an implementation detail.
+    Selects by the worker system prompt rather than by construction order,
+    which is an implementation detail of where the patch happens to bite.
     """
     subs = [
         h for h in captured if h.system.startswith("You are a clean-context worker")
@@ -519,7 +518,7 @@ class TestAgentSubagents:
         assert "subagent" not in captured_names
 
     def test_subagent_does_not_inherit_planner_hooks(self, monkeypatch, tmp_path):
-        from data_harness.loop import AsyncHarness as RealHarness
+        from data_harness.loop import Harness as RealHarness
 
         captured = []
 
@@ -528,7 +527,7 @@ class TestAgentSubagents:
             captured.append(harness)
             return harness
 
-        monkeypatch.setattr("data_harness.loop.AsyncHarness", recording_harness)
+        monkeypatch.setattr("data_harness.loop.Harness", recording_harness)
         adapter = FakeAdapter(
             [
                 FakeAdapter.tool_use("tu_1", "subagent", {"task": "work"}),
@@ -547,7 +546,7 @@ class TestAgentSubagents:
         assert _subagent_harness(captured).reminders == []
 
     def test_subagent_connector_tools_are_fresh_and_hidden(self, monkeypatch, tmp_path):
-        from data_harness.loop import AsyncHarness as RealHarness
+        from data_harness.loop import Harness as RealHarness
 
         captured = []
 
@@ -556,7 +555,7 @@ class TestAgentSubagents:
             captured.append(harness)
             return harness
 
-        monkeypatch.setattr("data_harness.loop.AsyncHarness", recording_harness)
+        monkeypatch.setattr("data_harness.loop.Harness", recording_harness)
         adapter = FakeAdapter(
             [
                 FakeAdapter.tool_use(

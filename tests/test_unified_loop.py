@@ -8,10 +8,12 @@ specific defects that drift produced, so a future split would fail loudly.
 from __future__ import annotations
 
 import asyncio
+import sqlite3
+import threading
 
 import pytest
 
-from data_harness.agent import Agent, AsyncAgent
+from data_harness.agent import Agent, AgentSession, AsyncAgent, AsyncAgentSession
 from data_harness.loop import (
     AsyncHarness,
     Harness,
@@ -22,10 +24,12 @@ from data_harness.providers.base import (
     AsyncProviderAdapter,
     NormalizedResponse,
     ProviderAdapter,
+    StopReason,
 )
+from data_harness.quickstart import resolve_adapter, resolve_async_adapter
 from data_harness.streaming import MessageDeltaEvent, ToolResultEvent
 from data_harness.testing import FakeAdapter, FakeAsyncAdapter
-from data_harness.types import Message, ToolSpec
+from data_harness.types import Message, ToolSpec, ToolUseBlock
 
 # ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -281,7 +285,6 @@ def test_sync_and_async_harness_produce_identical_results(tmp_path):
 
 
 def test_sync_harness_still_calls_the_sync_adapter(tmp_path):
-    """The bridge must forward to the wrapped adapter, not around it."""
     adapter = FakeAdapter([FakeAdapter.text("hi")])
     harness = Harness(adapter=adapter, system="sys", tools=[], run_dir=str(tmp_path))
 
@@ -292,11 +295,7 @@ def test_sync_harness_still_calls_the_sync_adapter(tmp_path):
 
 
 def test_sync_harness_works_inside_a_running_event_loop(tmp_path):
-    """Notebook kernels and async web handlers already have a loop running.
-
-    `asyncio.run` would raise there, so the facade falls back to a worker
-    thread with its own loop.
-    """
+    """A notebook kernel or async web handler already has a loop running."""
 
     async def outer():
         harness = Harness(
@@ -315,6 +314,253 @@ def test_run_coroutine_blocking_without_a_running_loop():
         return 7
 
     assert run_coroutine_blocking(coro()) == 7
+
+
+# ── the sync driver must stay genuinely synchronous ─────────────────────────
+
+
+def test_sync_driver_runs_tool_handlers_on_the_calling_thread(tmp_path):
+    """Handlers must keep thread affinity.
+
+    A connector holding a `sqlite3` connection built at setup time is the most
+    ordinary pattern this library has, and sqlite3 refuses cross-thread use.
+    Driving the sync path through an event loop moved handlers onto an
+    `asyncio.to_thread` worker and turned that into a tool error string.
+    """
+    seen: list[str] = []
+
+    spec = ToolSpec(
+        name="whereami",
+        description="Report the executing thread.",
+        input_schema={"type": "object", "properties": {}},
+        handler=lambda: seen.append(threading.current_thread().name) or "ok",
+    )
+
+    Harness(
+        adapter=FakeAdapter(
+            [
+                FakeAdapter.tool_use("tu_1", "whereami", {}),
+                FakeAdapter.text("done"),
+            ]
+        ),
+        system="sys",
+        tools=[spec],
+        run_dir=str(tmp_path),
+    ).run("go")
+
+    assert seen == [threading.current_thread().name]
+
+
+def test_sync_driver_keeps_a_thread_bound_resource_usable(tmp_path):
+    """The concrete failure the thread-affinity rule protects against."""
+    connection = sqlite3.connect(":memory:")
+    connection.execute("create table t (v integer)")
+    connection.execute("insert into t values (42)")
+
+    spec = ToolSpec(
+        name="query",
+        description="Read the fixed row.",
+        input_schema={"type": "object", "properties": {}},
+        handler=lambda: str(connection.execute("select v from t").fetchone()),
+    )
+
+    harness = Harness(
+        adapter=FakeAdapter(
+            [FakeAdapter.tool_use("tu_1", "query", {}), FakeAdapter.text("done")]
+        ),
+        system="sys",
+        tools=[spec],
+        run_dir=str(tmp_path),
+    )
+    harness.run("go")
+
+    tool_result = harness.messages[2].content[0]
+    assert tool_result.is_error is False
+    assert "42" in tool_result.content
+
+
+def test_sync_driver_leaves_the_ambient_event_loop_alone(tmp_path):
+    """`asyncio.run` clears the thread's loop; the sync driver must not.
+
+    A program that installs its own loop and then calls the *synchronous* API
+    used to find the loop gone afterwards, failing much later and elsewhere.
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        Harness(
+            adapter=FakeAdapter([FakeAdapter.text("hi")]),
+            system="sys",
+            tools=[],
+            run_dir=str(tmp_path),
+        ).run("go")
+        assert asyncio.get_event_loop() is loop
+    finally:
+        asyncio.set_event_loop(None)
+        loop.close()
+
+
+def test_run_coroutine_blocking_restores_the_ambient_event_loop():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    async def coro():
+        return 1
+
+    try:
+        assert run_coroutine_blocking(coro()) == 1
+        assert asyncio.get_event_loop() is loop
+    finally:
+        asyncio.set_event_loop(None)
+        loop.close()
+
+
+def test_keyboard_interrupt_escapes_the_sync_driver(tmp_path):
+    """Ctrl-C must reach the caller, not be absorbed as a tool error.
+
+    Tool failures are caught as `Exception` and reported to the model.
+    `KeyboardInterrupt` is a `BaseException` and must pass straight through,
+    and with inline dispatch it does so without waiting on a worker thread.
+    """
+
+    def interrupt():
+        raise KeyboardInterrupt
+
+    spec = ToolSpec(
+        name="boom",
+        description="Interrupt.",
+        input_schema={"type": "object", "properties": {}},
+        handler=interrupt,
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        Harness(
+            adapter=FakeAdapter(
+                [FakeAdapter.tool_use("tu_1", "boom", {}), FakeAdapter.text("done")]
+            ),
+            system="sys",
+            tools=[spec],
+            run_dir=str(tmp_path),
+        ).run("go")
+
+
+@pytest.mark.asyncio
+async def test_async_driver_offloads_blocking_handlers(tmp_path):
+    """The async driver must NOT run blocking handlers on the event loop.
+
+    The mirror image of the sync rule: a long pandas call on the loop thread
+    would stall every other task sharing it.
+    """
+    seen: list[str] = []
+
+    spec = ToolSpec(
+        name="whereami",
+        description="Report the executing thread.",
+        input_schema={"type": "object", "properties": {}},
+        handler=lambda: seen.append(threading.current_thread().name) or "ok",
+    )
+
+    await AsyncHarness(
+        adapter=FakeAsyncAdapter(
+            [
+                FakeAsyncAdapter.tool_use("tu_1", "whereami", {}),
+                FakeAsyncAdapter.text("done"),
+            ]
+        ),
+        system="sys",
+        tools=[spec],
+        run_dir=str(tmp_path),
+    ).run("go")
+
+    assert seen and seen != [threading.current_thread().name]
+
+
+# ── the drivers stay overridable ────────────────────────────────────────────
+
+
+def test_sync_driver_dispatch_is_overridable(tmp_path):
+    """`_call_tool` is the documented seam for sandboxing or instrumentation.
+
+    A facade that forwarded only public methods would accept the subclass and
+    silently never call its override.
+    """
+
+    class Instrumented(Harness):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.dispatched: list[str] = []
+
+        def _call_tool(self, call):
+            self.dispatched.append(call.tool_name)
+            return super()._call_tool(call)
+
+    harness = Instrumented(
+        adapter=FakeAdapter(
+            [
+                FakeAdapter.tool_use("tu_1", "echo", {"value": "hi"}),
+                FakeAdapter.text("d"),
+            ]
+        ),
+        system="sys",
+        tools=[echo_spec()],
+        run_dir=str(tmp_path),
+    )
+    harness.run("go")
+
+    assert harness.dispatched == ["echo"]
+
+
+@pytest.mark.asyncio
+async def test_async_driver_dispatch_is_overridable(tmp_path):
+    class Instrumented(AsyncHarness):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.dispatched: list[str] = []
+
+        async def _call_tool(self, call):
+            self.dispatched.append(call.tool_name)
+            return await super()._call_tool(call)
+
+    harness = Instrumented(
+        adapter=FakeAsyncAdapter(
+            [
+                FakeAsyncAdapter.tool_use("tu_1", "echo", {"value": "hi"}),
+                FakeAsyncAdapter.text("d"),
+            ]
+        ),
+        system="sys",
+        tools=[echo_spec()],
+        run_dir=str(tmp_path),
+    )
+    await harness.run("go")
+
+    assert harness.dispatched == ["echo"]
+
+
+@pytest.mark.parametrize(
+    "attribute",
+    [
+        "_messages",
+        "_tools",
+        "_system",
+        "_max_turns",
+        "_cache",
+        "_reminders",
+        "_run_file",
+        "_on_code",
+        "_code_only",
+    ],
+)
+def test_both_drivers_carry_the_loop_state(attribute, tmp_path):
+    """Loop state lives on the shared base, so neither driver is a hollow shell."""
+    sync = Harness(
+        adapter=FakeAdapter([]), system="sys", tools=[], run_dir=str(tmp_path)
+    )
+    asynchronous = AsyncHarness(
+        adapter=FakeAsyncAdapter([]), system="sys", tools=[], run_dir=str(tmp_path)
+    )
+    assert hasattr(sync, attribute)
+    assert hasattr(asynchronous, attribute)
 
 
 # ── adapter bridging ────────────────────────────────────────────────────────
@@ -489,3 +735,206 @@ def test_harness_inspection_properties_are_live(tmp_path):
     harness.run("go")
     assert isinstance(harness.messages[0], Message)
     assert harness.last_result is not None
+
+
+# ── async adapter resolution ────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("claude-sonnet-4-6", "AsyncAnthropicAdapter"),
+        ("gpt-4o-mini", "AsyncOpenAIAdapter"),
+        ("o3-mini", "AsyncOpenAIAdapter"),
+        ("deepseek-chat", "AsyncDeepSeekAdapter"),
+        ("openai/gpt-4o-mini", "AsyncOpenRouterAdapter"),
+    ],
+)
+def test_resolve_async_adapter_routes_like_the_sync_one(model, expected, monkeypatch):
+    """The two resolvers share `_route`, so they cannot disagree about a model."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "x")
+
+    assert type(resolve_async_adapter(model)).__name__ == expected
+    assert type(resolve_adapter(model)).__name__ == expected.replace("Async", "", 1)
+
+
+def test_resolve_async_adapter_reads_the_environment(monkeypatch):
+    for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "x")
+
+    assert type(resolve_async_adapter()).__name__ == "AsyncDeepSeekAdapter"
+
+
+def test_resolve_async_adapter_without_any_provider(monkeypatch):
+    for var in (
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "OPENROUTER_API_KEY",
+        "DEEPSEEK_API_KEY",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+    with pytest.raises(RuntimeError, match="No provider configured"):
+        resolve_async_adapter()
+
+
+def test_async_agent_from_dataframe_resolves_an_async_adapter(monkeypatch):
+    """Without an explicit adapter, `AsyncAgent` must not pick a sync one."""
+    pd = pytest.importorskip("pandas")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "x")
+    for var in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+
+    agent = AsyncAgent.from_dataframe(pd.DataFrame({"a": [1]}))
+
+    assert isinstance(agent._adapter, AsyncProviderAdapter)
+    assert isinstance(
+        Agent.from_dataframe(pd.DataFrame({"a": [1]}))._adapter, ProviderAdapter
+    )
+
+
+# ── session parity ──────────────────────────────────────────────────────────
+
+
+def test_sessions_expose_the_same_surface():
+    """The sessions are the remaining hand-written pair; guard them too."""
+    sync_api = {n for n in dir(AgentSession) if not n.startswith("_")}
+    async_api = {n for n in dir(AsyncAgentSession) if not n.startswith("_")}
+
+    assert sync_api - async_api == set()
+    assert async_api - sync_api == {"ask_stream"}
+
+
+def test_sessions_seed_from_a_copy_of_the_agent_cache(tmp_path):
+    pd = pytest.importorskip("pandas")
+    frame = pd.DataFrame({"a": [1, 2, 3]})
+
+    sync_session = Agent.from_dataframe(
+        frame, adapter=FakeAdapter([]), run_dir=str(tmp_path)
+    ).session()
+    async_session = AsyncAgent.from_dataframe(
+        frame, adapter=FakeAsyncAdapter([]), run_dir=str(tmp_path)
+    ).async_session()
+
+    assert sync_session.list_handles().keys() == async_session.list_handles().keys()
+    assert sync_session.turns == async_session.turns == 0
+
+
+# ── streaming reaches every terminal state ──────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_stream_reports_max_turns_exceeded(tmp_path):
+    """The streaming path used to produce no result at all for this outcome."""
+    harness = AsyncHarness(
+        adapter=FakeAsyncAdapter(
+            [FakeAsyncAdapter.tool_use("tu_1", "echo", {"value": "hi"})]
+        ),
+        system="sys",
+        tools=[echo_spec()],
+        max_turns=1,
+        run_dir=str(tmp_path),
+    )
+
+    async for _ in harness.run_stream("go"):
+        pass
+
+    result = harness.last_result
+    assert result is not None
+    assert result.status == "max_turns_exceeded"
+    assert result.turns == 1
+    assert result.usage.input_tokens == 10
+
+
+@pytest.mark.asyncio
+async def test_abandoning_a_stream_leaves_no_result(tmp_path):
+    """`last_result` is documented as set once the generator is exhausted."""
+    harness = AsyncHarness(
+        adapter=FakeAsyncAdapter([FakeAsyncAdapter.text("done")]),
+        system="sys",
+        tools=[],
+        run_dir=str(tmp_path),
+    )
+
+    async for _ in harness.run_stream("go"):
+        break
+
+    assert harness.last_result is None
+
+
+@pytest.mark.asyncio
+async def test_tool_result_events_cover_failures_and_missing_tools(tmp_path):
+    """Every result block gets an event, not only the ones that succeeded."""
+
+    def raises():
+        raise ValueError("nope")
+
+    boom = ToolSpec(
+        name="boom",
+        description="Fail.",
+        input_schema={"type": "object", "properties": {}},
+        handler=raises,
+    )
+    harness = AsyncHarness(
+        adapter=FakeAsyncAdapter(
+            [
+                NormalizedResponse(
+                    stop_reason=StopReason.TOOL_USE,
+                    content=[
+                        ToolUseBlock(
+                            tool_use_id="tu_1", tool_name="boom", tool_input={}
+                        ),
+                        ToolUseBlock(
+                            tool_use_id="tu_2", tool_name="ghost", tool_input={}
+                        ),
+                    ],
+                    input_tokens=1,
+                    output_tokens=1,
+                    cache_read_tokens=0,
+                    cache_write_tokens=0,
+                ),
+                FakeAsyncAdapter.text("done"),
+            ]
+        ),
+        system="sys",
+        tools=[boom],
+        run_dir=str(tmp_path),
+    )
+
+    events = [e async for e in harness.run_stream("go")]
+    tool_events = [e for e in events if isinstance(e, ToolResultEvent)]
+
+    assert [e.tool_name for e in tool_events] == ["boom", "ghost"]
+    assert all(e.is_error for e in tool_events)
+
+
+# ── the deepest path the drivers support ────────────────────────────────────
+
+
+def test_subagent_inside_a_sync_harness_inside_a_running_loop(tmp_path):
+    """Async caller -> sync Agent -> sync subagent. Must not deadlock."""
+
+    async def outer():
+        agent = Agent(
+            adapter=FakeAdapter(
+                [
+                    FakeAdapter.tool_use("tu_1", "subagent", {"task": "work"}),
+                    FakeAdapter.text("parent done"),
+                ]
+            ),
+            system="sys",
+            run_dir=str(tmp_path),
+        )
+        agent.enable_subagents(
+            adapter_factory=lambda: FakeAdapter([FakeAdapter.text("sub done")])
+        )
+        return agent.run_result("delegate")
+
+    result = asyncio.run(outer())
+
+    assert result.status == "success"
+    assert result.text == "parent done"

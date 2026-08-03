@@ -111,6 +111,10 @@ def _build_adapter(model: str | None, *, is_async: bool) -> Any:
     try:
         module = importlib.import_module(module_name)
     except ImportError as exc:  # pragma: no cover - exercised via install matrix
+        if extra is None:
+            # A required dependency failed to import. Say what actually broke
+            # rather than inventing an extra that does not exist.
+            raise
         raise RuntimeError(
             f"{provider} support requires the {extra!r} extra: pip install "
             f"'data-harness[{extra}]'."

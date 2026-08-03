@@ -50,11 +50,7 @@ def make_subagent_spec(
         input_handles: list[str] | None = None,
         output_policy: str = "text_only",
     ) -> str:
-        from data_harness.loop import (
-            AsyncHarness,
-            as_async_adapter,
-            run_coroutine_blocking,
-        )
+        from data_harness.loop import AsyncHarness, Harness, run_coroutine_blocking
 
         # Validate input_handles against parent cache
         if input_handles:
@@ -103,17 +99,24 @@ def make_subagent_spec(
         handles_str = str(input_handles) if input_handles else "none"
         system = _WORKER_SYSTEM_TEMPLATE.format(task=task, input_handles=handles_str)
 
-        # Spawn fresh adapter
-        sub_harness = AsyncHarness(
-            adapter=as_async_adapter(adapter_factory()),
-            system=system,
-            tools=sub_tools,
-            run_dir=run_dir,
-            cache=sub_cache,
-        )
+        # Spawn fresh adapter. A sync adapter gets the sync driver so the
+        # subagent keeps the parent's threading semantics; only an async
+        # adapter needs a loop spun up to drive it from this sync handler.
+        sub_adapter = adapter_factory()
+        harness_kwargs = {
+            "system": system,
+            "tools": sub_tools,
+            "run_dir": run_dir,
+            "cache": sub_cache,
+        }
 
         try:
-            final_text = run_coroutine_blocking(sub_harness.run(task))
+            if isinstance(sub_adapter, AsyncProviderAdapter):
+                final_text = run_coroutine_blocking(
+                    AsyncHarness(adapter=sub_adapter, **harness_kwargs).run(task)
+                )
+            else:
+                final_text = Harness(adapter=sub_adapter, **harness_kwargs).run(task)
         except Exception as exc:
             return f"Error: subagent failed: {type(exc).__name__}: {exc}"
 

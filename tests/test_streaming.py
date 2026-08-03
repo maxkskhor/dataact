@@ -965,6 +965,73 @@ class TestStreamErrorHandling:
         # Stream should have stopped (no infinite loop)
         assert len(events) < 100
 
+        # The stream stopping is not enough: the run must still be accounted
+        # for. This test used to end at the line above, which is how the
+        # streaming loop got away with discarding its RunResult on provider
+        # errors, and with it the tokens already spent.
+        result = harness.last_result
+        assert result is not None
+        assert result.status == "error"
+        assert "provider blew up" in (result.error or "")
+        assert result.run_file == harness.run_file
+
+    async def test_unknown_event_types_are_ignored_not_fatal(self, tmp_path):
+        """The accumulator skips events it does not recognise, on purpose.
+
+        Providers add event types over time; an unknown one must not break a
+        run. It contributes nothing, so the turn assembles from the rest.
+        """
+
+        class ChattyAdapter(AsyncProviderAdapter):
+            async def chat(self, system, messages, tools):
+                return FakeAsyncAdapter.text("x")
+
+            def format_cache_control(self, obj):
+                return obj
+
+            async def stream_events(self, system, messages, tools):
+                yield MessageStartEvent()
+                yield "some future event type"
+                yield MessageStopEvent()
+
+        harness = AsyncHarness(
+            adapter=ChattyAdapter(), system="s", tools=[], run_dir=str(tmp_path)
+        )
+        async for _ in harness.run_stream("q"):
+            pass
+
+        result = harness.last_result
+        assert result is not None
+        assert result.status == "success"
+
+    async def test_a_failure_while_assembling_the_turn_is_reported(
+        self, tmp_path, monkeypatch
+    ):
+        """Accumulation runs inside the loop's provider try-block, deliberately.
+
+        If assembling the turn blows up, that is a provider failure and belongs
+        in the RunResult. Outside the try it would escape into the caller's
+        `async for` and bypass all run accounting.
+        """
+
+        def explode(_events):
+            raise ValueError("cannot assemble this turn")
+
+        monkeypatch.setattr("data_harness.loop.accumulate_stream_events", explode)
+        harness = AsyncHarness(
+            adapter=FakeAsyncAdapter([FakeAsyncAdapter.text("hi")]),
+            system="s",
+            tools=[],
+            run_dir=str(tmp_path),
+        )
+        async for _ in harness.run_stream("q"):
+            pass
+
+        result = harness.last_result
+        assert result is not None
+        assert result.status == "error"
+        assert "cannot assemble this turn" in (result.error or "")
+
 
 # ---------------------------------------------------------------------------
 # 12. AsyncAgent.run_stream() passthrough
