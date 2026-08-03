@@ -38,6 +38,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import dataclasses
+import enum
 import functools
 from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
 from contextlib import aclosing
@@ -175,13 +176,19 @@ def _evaluate_code_gate(
     return None
 
 
+class _Unreadable(enum.Enum):
+    """Sentinel type, so `_ambient_event_loop` keeps a real return union."""
+
+    TOKEN = "unreadable"
+
+
 #: Returned by `_ambient_event_loop` when the thread's loop cannot be read
 #: without risking a side effect. Distinct from ``None``, which means "read
 #: successfully, and there is no loop".
-_UNREADABLE = object()
+_UNREADABLE = _Unreadable.TOKEN
 
 
-def _ambient_event_loop() -> Any:
+def _ambient_event_loop() -> asyncio.AbstractEventLoop | None | _Unreadable:
     """The loop already installed on this thread, ``None``, or `_UNREADABLE`.
 
     Must not install one as a side effect: on Python 3.10 and 3.11
@@ -192,12 +199,11 @@ def _ambient_event_loop() -> Any:
     that slot is what we read.
 
     Under a policy that does not expose it, we decline to guess: creating a
-    loop to find out whether one exists is the exact bug this guards against,
-    so the caller is told it cannot know and leaves the thread alone.
+    loop to find out whether one exists is the exact bug this guards against.
     """
     policy = asyncio.get_event_loop_policy()
     local = getattr(policy, "_local", None)
-    if local is None:  # pragma: no cover - non-default policy
+    if local is None:
         return _UNREADABLE
     return getattr(local, "_loop", None)
 
@@ -227,8 +233,12 @@ def run_coroutine_blocking(coro: Coroutine[Any, Any, _T]) -> _T:
                 loop.run_until_complete(loop.shutdown_asyncgens())
             finally:
                 loop.close()
-                if previous is not _UNREADABLE:
-                    asyncio.set_event_loop(previous)
+                # `set_event_loop(loop)` already ran, so simply skipping the
+                # restore would leave the thread pointing at a *closed* loop,
+                # which is worse than the leak this branch exists to avoid.
+                # When the previous loop was unreadable, `None` is the only
+                # honest answer.
+                asyncio.set_event_loop(None if previous is _UNREADABLE else previous)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         return pool.submit(asyncio.run, coro).result()
@@ -267,6 +277,8 @@ class _HarnessBase:
         self._on_code = on_code
         self._code_only = code_only
         self._last_result: RunResult | None = None
+        self._turns_completed = 0
+        self._usage_so_far = Usage()
 
     def register_reminder(self, hook: Callable[[int, int], str | None]) -> None:
         """Register a suffix reminder hook called before each provider turn.
@@ -345,6 +357,13 @@ class _HarnessBase:
     def _stamp(
         self, result: RunResult, run_id: str | None, session_id: str | None
     ) -> RunResult:
+        """Attach run/session ids and make the result the harness's latest.
+
+        Internal, but reached from `data_harness.agent` so that a streamed run
+        is identified exactly like a non-streamed one. Mutates
+        `self._last_result`; anything reading it afterwards sees the stamped
+        object.
+        """
         stamped = dataclasses.replace(result, run_id=run_id, session_id=session_id)
         self._last_result = stamped
         return stamped
@@ -354,7 +373,8 @@ class _HarnessBase:
     def _plan(self) -> Generator[Effect, Any, None]:
         """Drive one run, yielding the I/O it needs. The only loop in the library.
 
-        Sets `last_result` before returning, on every exit path.
+        Sets `last_result` before returning, on every exit path, including
+        abandonment.
         """
         if self._run_file is None:
             raise RuntimeError("run_file must be initialised before running the loop")
@@ -362,7 +382,30 @@ class _HarnessBase:
         self._last_result = None
         total_usage = Usage()
 
+        try:
+            yield from self._turns(total_usage)
+        except GeneratorExit:
+            # A consumer that stops mid-stream still spent whatever the
+            # completed turns cost. Recording it here is the same rule that
+            # made provider errors keep their usage: never drop tokens the
+            # provider has already billed just because the caller walked away.
+            if self._last_result is None:
+                self._last_result = self._build_result(
+                    text="",
+                    status="error",
+                    turns=self._turns_completed,
+                    stop_reason=None,
+                    usage=self._usage_so_far,
+                    error="RunAbandoned('stream closed before the run finished')",
+                )
+            raise
+
+    def _turns(self, total_usage: Usage) -> Generator[Effect, Any, None]:
+        self._turns_completed = 0
+        self._usage_so_far = total_usage
+
         for turn in range(1, self._max_turns + 1):
+            self._turns_completed = turn
             self._apply_reminders(turn)
             visible_tools = [t for t in self._tools if t.visible]
 
@@ -401,6 +444,9 @@ class _HarnessBase:
                 cache_read_tokens=response.cache_read_tokens,
                 cache_write_tokens=response.cache_write_tokens,
             )
+            # Mirrored onto the instance so an abandoned run can still report
+            # what it spent; the generator's local is gone by then.
+            self._usage_so_far = total_usage
 
             self._messages.append(Message(role="assistant", content=response.content))
 

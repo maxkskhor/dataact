@@ -600,7 +600,7 @@ async def test_async_agent_code_only_blocks_execution(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_async_agent_subagent_bridges_a_sync_adapter_factory(tmp_path):
+async def test_async_agent_subagent_accepts_a_sync_adapter_factory(tmp_path):
     """A sync adapter factory must still work under an async parent."""
     agent = AsyncAgent(
         adapter=FakeAsyncAdapter(
@@ -824,8 +824,14 @@ async def test_stream_reports_max_turns_exceeded(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_abandoning_a_stream_leaves_no_result(tmp_path):
-    """`last_result` is documented as set once the generator is exhausted."""
+async def test_abandoning_a_stream_still_accounts_for_it(tmp_path):
+    """An abandoned run reports what it spent, rather than nothing at all.
+
+    This used to assert `last_result is None`. That was the same defect the
+    phase set out to fix, one case over: a consumer that reads the final
+    event and breaks has paid for that turn in full, and reporting nothing
+    loses those tokens exactly the way the old streaming error path did.
+    """
     harness = AsyncHarness(
         adapter=FakeAsyncAdapter([FakeAsyncAdapter.text("done")]),
         system="sys",
@@ -833,10 +839,46 @@ async def test_abandoning_a_stream_leaves_no_result(tmp_path):
         run_dir=str(tmp_path),
     )
 
-    async for _ in harness.run_stream("go"):
-        break
+    stream = harness.run_stream("go")
+    async for _ in stream:
+        break  # consume one event, then walk away
+    await stream.aclose()
 
-    assert harness.last_result is None
+    result = harness.last_result
+    assert result is not None
+    assert result.status == "error"
+    assert "RunAbandoned" in (result.error or "")
+
+
+@pytest.mark.asyncio
+async def test_an_abandoned_stream_keeps_the_usage_of_finished_turns(tmp_path):
+    """Turns that completed before the caller walked away are still billed."""
+    harness = AsyncHarness(
+        adapter=FakeAsyncAdapter(
+            [
+                FakeAsyncAdapter.tool_use("tu_1", "echo", {"value": "hi"}),
+                FakeAsyncAdapter.text("done"),
+            ]
+        ),
+        system="sys",
+        tools=[echo_spec()],
+        run_dir=str(tmp_path),
+    )
+
+    stream = harness.run_stream("go")
+    seen = 0
+    async for event in stream:
+        seen += 1
+        if isinstance(event, ToolResultEvent):
+            break
+    await stream.aclose()
+
+    result = harness.last_result
+    assert result is not None
+    assert result.status == "error"
+    # Turn 1 completed and was billed before the caller stopped reading.
+    assert result.usage.input_tokens == 10
+    assert result.usage.output_tokens == 5
 
 
 @pytest.mark.asyncio

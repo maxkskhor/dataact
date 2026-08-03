@@ -757,16 +757,17 @@ class AsyncAgent(_AgentBase):
                     if isinstance(event.delta, TextDelta):
                         print(event.delta.text, end="", flush=True)
         """
-        run_id = str(uuid.uuid4())
         key = self._replay_key(user_message)
         if key is not None:
             cached = self._exec_cache.get(key)
             if cached is not None:
+                # `_replay` mints its own run id; nothing here to stamp.
                 result = await self._replay(cached)
                 for event in _synthetic_text_events(result.text):
                     yield event
                 return
 
+        run_id = str(uuid.uuid4())
         harness = self._make_harness()
         self._last_harness = harness
         # `aclosing`, not a bare `async for`: closing this generator does not

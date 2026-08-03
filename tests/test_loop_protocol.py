@@ -38,6 +38,7 @@ from data_harness.loop import (
     Harness,
     Ok,
     ToolFinished,
+    run_coroutine_blocking,
 )
 from data_harness.streaming import ContentBlockDeltaEvent, TextDelta
 from data_harness.testing import FakeAdapter, FakeAsyncAdapter
@@ -726,3 +727,67 @@ async def test_a_replay_hit_is_readable_through_last_result(tmp_path):
 
     assert fresh.last_result is not None
     assert fresh.last_result.text == "The answer is 6"
+
+
+def test_an_unreadable_ambient_loop_leaves_no_closed_loop_behind():
+    """Under a policy we cannot introspect, don't guess and don't poison.
+
+    Skipping the restore would leave the thread pointing at the loop
+    `run_coroutine_blocking` just closed, which is worse than the leak the
+    branch exists to avoid: every later `get_event_loop()` user gets
+    'Event loop is closed'.
+    """
+    import threading
+
+    from data_harness.loop import _UNREADABLE, _ambient_event_loop
+
+    class OpaquePolicy(asyncio.AbstractEventLoopPolicy):
+        """A policy that keeps its current loop somewhere we cannot read.
+
+        Third-party policies are not obliged to expose the stdlib's private
+        `_local` slot, so this is the shape the fallback branch must survive.
+        """
+
+        def __init__(self) -> None:
+            self.current: asyncio.AbstractEventLoop | None = None
+            # Delegate loop construction; building it via `asyncio.new_event_loop`
+            # would route back through this policy and recurse.
+            self._factory = asyncio.DefaultEventLoopPolicy()
+
+        def get_event_loop(self):
+            if self.current is None:
+                raise RuntimeError("no current loop")
+            return self.current
+
+        def set_event_loop(self, loop):
+            self.current = loop
+
+        def new_event_loop(self):
+            return self._factory.new_event_loop()
+
+    observed: dict[str, object] = {}
+
+    def on_a_fresh_thread() -> None:
+        previous_policy = asyncio.get_event_loop_policy()
+        policy = OpaquePolicy()
+        asyncio.set_event_loop_policy(policy)
+        try:
+            observed["probe"] = _ambient_event_loop()
+
+            async def coro():
+                return 42
+
+            observed["result"] = run_coroutine_blocking(coro())
+            observed["left_behind"] = policy.current
+        finally:
+            asyncio.set_event_loop_policy(previous_policy)
+
+    worker = threading.Thread(target=on_a_fresh_thread)
+    worker.start()
+    worker.join()
+
+    assert observed["probe"] is _UNREADABLE
+    assert observed["result"] == 42
+    # Not a closed loop. `None` is the honest answer when we could not read
+    # what was there before.
+    assert observed["left_behind"] is None
