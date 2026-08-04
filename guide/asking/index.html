@@ -534,6 +534,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#adding-a-provider-without-writing-an-adapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a provider without writing an adapter
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#structured-answers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1090,6 +1101,31 @@ more behind one OpenAI-compatible endpoint — ideal for cross-model testing. Se
 <p>DeepSeek's own (very cheap) API works directly too — set <code>DEEPSEEK_API_KEY</code> and
 use a bare <code>model="deepseek-chat"</code> (or <code>DeepSeekAdapter</code>). A <code>deepseek/...</code> id
 with a slash routes via OpenRouter instead.</p>
+<h3 id="adding-a-provider-without-writing-an-adapter">Adding a provider without writing an adapter</h3>
+<p>Most LLM providers speak the OpenAI-compatible chat completions format — only
+Anthropic's Messages API is different enough to need its own adapter. Groq,
+Together, Fireworks, Cerebras, and xAI are pre-registered, so they work the
+same way as OpenRouter/DeepSeek:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.llm.providers.openai</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenAIAdapter</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">ask</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">adapter</span><span class="o">=</span><span class="n">OpenAIAdapter</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;llama-3.3-70b-versatile&quot;</span><span class="p">,</span> <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;groq&quot;</span><span class="p">))</span>
+</code></pre></div>
+<p>A provider not on that list is a config, not a class:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.llm.providers.openai</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">OpenAICompatibleProvider</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">register_openai_compatible_provider</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">register_openai_compatible_provider</span><span class="p">(</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">OpenAICompatibleProvider</span><span class="p">(</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;my-provider&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>        <span class="n">base_url</span><span class="o">=</span><span class="s2">&quot;https://api.my-provider.example/v1&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>        <span class="n">api_key_env</span><span class="o">=</span><span class="s2">&quot;MY_PROVIDER_API_KEY&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>        <span class="n">default_model</span><span class="o">=</span><span class="s2">&quot;my-model-large&quot;</span><span class="p">,</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    <span class="p">)</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="p">)</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="n">ask</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">adapter</span><span class="o">=</span><span class="n">OpenAIAdapter</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;my-model-large&quot;</span><span class="p">,</span> <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;my-provider&quot;</span><span class="p">))</span>
+</code></pre></div>
 <h2 id="structured-answers">Structured answers</h2>
 <p>The interpreter exposes an <code>answer(value)</code> helper. When the model calls it, the
 value is returned as <code>RunResult.value</code> — a number, a DataFrame, anything. This
@@ -1109,15 +1145,15 @@ is captured automatically as a <code>ChartArtifact</code>. The image bytes are w
 disk and <strong>never</strong> enter the message history or the session log — only a path
 does, exactly like a cache handle. In Jupyter, <code>RunResult</code> and <code>ChartArtifact</code>
 render inline.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;Plot revenue by region as a bar chart.&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">result</span><span class="o">.</span><span class="n">charts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>   <span class="c1"># renders inline in a notebook</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;Plot revenue by region as a bar chart.&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">result</span><span class="o">.</span><span class="n">charts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>   <span class="c1"># renders inline in a notebook</span>
 </code></pre></div>
 <h2 id="multi-turn-chat">Multi-turn chat</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness</span><span class="w"> </span><span class="kn">import</span> <span class="n">Chat</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">chat</span> <span class="o">=</span> <span class="n">Chat</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">chat</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="s2">&quot;What was total revenue?&quot;</span><span class="p">)</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">chat</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="s2">&quot;Which month was highest?&quot;</span><span class="p">)</span>   <span class="c1"># remembers context</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness</span><span class="w"> </span><span class="kn">import</span> <span class="n">Chat</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">chat</span> <span class="o">=</span> <span class="n">Chat</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">chat</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="s2">&quot;What was total revenue?&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">chat</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="s2">&quot;Which month was highest?&quot;</span><span class="p">)</span>   <span class="c1"># remembers context</span>
 </code></pre></div>
 <p><code>SmartFrame(df).chat("...")</code> is a pandasai-style wrapper over the same machinery.
 There is also an opt-in pandas accessor — <code>import data_harness.app.pandas</code> then
@@ -1126,35 +1162,35 @@ There is also an opt-in pandas accessor — <code>import data_harness.app.pandas
 <p>With DuckDB installed, <code>ask</code> exposes a <code>sql_query</code> tool that runs SQL directly
 against your DataFrame handles; results become new handles. Point it at a real
 database with a SQLAlchemy URL:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">ask</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;Use SQL to compute total revenue per region.&quot;</span><span class="p">)</span>   <span class="c1"># DuckDB, in-process</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">df</span><span class="p">)</span><span class="o">.</span><span class="n">enable_sql</span><span class="p">(</span><span class="n">engine_url</span><span class="o">=</span><span class="s2">&quot;postgresql://...&quot;</span><span class="p">)</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;Top 5 customers by spend last quarter?&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">ask</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;Use SQL to compute total revenue per region.&quot;</span><span class="p">)</span>   <span class="c1"># DuckDB, in-process</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">df</span><span class="p">)</span><span class="o">.</span><span class="n">enable_sql</span><span class="p">(</span><span class="n">engine_url</span><span class="o">=</span><span class="s2">&quot;postgresql://...&quot;</span><span class="p">)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;Top 5 customers by spend last quarter?&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="the-semantic-layer">The semantic layer</h2>
 <p>Attach column descriptions, units, or business definitions so the model reasons
 correctly. They are folded into the snapshot the model sees.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">ask</span><span class="p">(</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">df</span><span class="p">,</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="s2">&quot;What is churn?&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">semantics</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;churn&quot;</span><span class="p">:</span> <span class="s2">&quot;1 if the customer cancelled in-month&quot;</span><span class="p">}}},</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">ask</span><span class="p">(</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">df</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="s2">&quot;What is churn?&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">semantics</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;df&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;columns&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;churn&quot;</span><span class="p">:</span> <span class="s2">&quot;1 if the customer cancelled in-month&quot;</span><span class="p">}}},</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="p">)</span>
 </code></pre></div>
 <h2 id="production-controls">Production controls</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span><span class="p">,</span> <span class="n">ExecutionCache</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># Replay repeat questions with no model call (zero turns, zero tokens):</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">df</span><span class="p">)</span><span class="o">.</span><span class="n">enable_cache</span><span class="p">(</span><span class="n">ExecutionCache</span><span class="p">(</span><span class="s2">&quot;cache.json&quot;</span><span class="p">))</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1"># Run interpreter code in an isolated process (no network, CPU/time limits):</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">sandboxed</span> <span class="o">=</span> <span class="n">Agent</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">execution</span><span class="o">=</span><span class="s2">&quot;subprocess&quot;</span><span class="p">)</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="c1"># Approve or block code before it runs:</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">gated</span> <span class="o">=</span> <span class="n">Agent</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">on_code</span><span class="o">=</span><span class="k">lambda</span> <span class="n">code</span><span class="p">:</span> <span class="p">(</span><span class="nb">print</span><span class="p">(</span><span class="n">code</span><span class="p">),</span> <span class="kc">True</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="c1"># Dry run — return the code without executing it:</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="n">preview</span> <span class="o">=</span> <span class="n">Agent</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">code_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span><span class="p">,</span> <span class="n">ExecutionCache</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># Replay repeat questions with no model call (zero turns, zero tokens):</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">df</span><span class="p">)</span><span class="o">.</span><span class="n">enable_cache</span><span class="p">(</span><span class="n">ExecutionCache</span><span class="p">(</span><span class="s2">&quot;cache.json&quot;</span><span class="p">))</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># Run interpreter code in an isolated process (no network, CPU/time limits):</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">sandboxed</span> <span class="o">=</span> <span class="n">Agent</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">execution</span><span class="o">=</span><span class="s2">&quot;subprocess&quot;</span><span class="p">)</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># Approve or block code before it runs:</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="n">gated</span> <span class="o">=</span> <span class="n">Agent</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">on_code</span><span class="o">=</span><span class="k">lambda</span> <span class="n">code</span><span class="p">:</span> <span class="p">(</span><span class="nb">print</span><span class="p">(</span><span class="n">code</span><span class="p">),</span> <span class="kc">True</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="c1"># Dry run — return the code without executing it:</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="n">preview</span> <span class="o">=</span> <span class="n">Agent</span><span class="o">.</span><span class="n">from_dataframe</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">code_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
 <ul>
 <li><strong>Code-replay cache</strong> keys off the question and the data <em>schema</em> (not the
