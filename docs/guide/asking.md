@@ -54,7 +54,8 @@ from data_harness.llm.providers.openai import OpenAIAdapter
 ask(df, "...", adapter=OpenAIAdapter(model="llama-3.3-70b-versatile", provider="groq"))
 ```
 
-A provider not on that list is a config, not a class:
+Register any other OpenAI-compatible provider with a plain config, no adapter
+class required:
 
 ```python
 from data_harness.llm.providers.openai import (

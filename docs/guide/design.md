@@ -40,32 +40,33 @@ decision in a turn and performs no network I/O: it *asks* for I/O by yielding
 - `AsyncHarness` awaits the provider and offloads blocking handlers to a
   worker thread, so a long pandas call cannot stall a shared event loop.
 
-There used to be four near-copies of this loop (sync/async x result/stream).
-They had drifted: the streaming copy discarded token usage on provider errors,
-and `AsyncAgent` was missing eight features `Agent` had.
+Both drivers run the same generator, so a sync and an async run make
+identical decisions about reminders, tool gating, and when to stop.
 
 ---
 
 ## The session tree
 
 A session is an append-only tree of typed entries, each naming its parent,
-with a movable leaf. **The conversation the model sees is derived by walking
-root to leaf, and is never stored**, so there is no second copy to disagree
-with the log.
+with a movable leaf. The conversation the model sees is derived by walking
+root to leaf. There is only ever one copy of the conversation: the derived
+context, computed from the tree each time it is needed.
 
 Everything else follows from that:
 
 - **Resume** — reopen a session file in another process and carry on.
 - **Forking** — move the leaf and append; both branches survive, so a turn can
-  be retried with a different model without destroying the first attempt.
-- **Compaction is an entry, not an edit.** The compacted turns stay in the
-  tree; moving the leaf back restores them.
-- Writing is one line per entry — linear in the number of entries, not
-  quadratic in the size of the history.
+  be retried with a different model without losing the first attempt.
+- **Reversible compaction** — a compaction is its own entry. The compacted
+  turns stay in the tree, so moving the leaf back restores them.
+- **Linear writes** — one line per entry, so writing a session costs is
+  proportional to how many entries it has, independent of how long the
+  conversation already is.
 
-A derived context is always something a provider will accept: a tool call with
-no result, or a result with no call, is dropped. Both are reachable without a
-bug, because a run killed mid-tool leaves an orphaned call on disk.
+A derived context is always something a provider will accept: a tool call
+with no result, or a result with no call, is dropped. Both are reachable
+without a bug in this library, because a run killed mid-tool leaves an
+orphaned call on disk.
 
 ---
 
@@ -80,42 +81,44 @@ AfterToolCall  -> Replace(content, is_error)
 AfterTurn      -> Stop(reason)
 ```
 
-The interpreter approval gate is built from exactly this mechanism rather than
-being special-cased inside the loop, which is the evidence that the mechanism
-is sufficient. `AfterTurn` is where a spend cap belongs: the tokens are already
-counted, so the decision is made on real numbers.
+The interpreter approval gate is built from exactly this mechanism. `AfterTurn`
+is where a spend cap belongs: the tokens are already counted by then, so the
+decision is made on real numbers.
 
 Hooks must not raise. One that does is reported as `HookError`, and the run
-fails with its usage intact rather than vanishing.
+ends with its usage intact.
 
 ---
 
 ## Compaction
 
-`max_turns` is a wall, not a strategy: a run needing thirty turns fails at
-twenty-five having paid for all of them. Compaction summarises older turns and
-replays the summary in their place.
+`max_turns` caps how many turns a run gets. Compaction gives a long run a way
+to keep going within that cap: it summarises older turns and replays the
+summary in their place, freeing up room for more turns.
 
 The cut always lands on a turn boundary, so an assistant tool call is never
 separated from the result answering it. When there is nowhere safe to cut,
-nothing is cut.
+compaction does nothing that turn.
 
-Compaction costs this library less than it costs a coding agent: the data
-lives in the cache under handles, not in the transcript, so compacting away
-the turn that loaded a DataFrame loses the discussion of it, not the frame.
+The data a compacted turn discussed is unaffected: it lives in the cache
+under handles, separate from the transcript. Compacting away the turn that
+loaded a DataFrame removes the discussion of it from the context; the
+DataFrame itself is still there under its handle.
 
 ---
 
 ## Errors
 
-Every failure carries a stable `code`, because a caller deciding between
-retrying, showing the user an error, and billing the attempt needs to tell a
-rate-limited provider from a typo in the model's pandas from a sandbox
-timeout. Codes are API; messages are not.
+Every failure carries a stable `code`. A caller deciding between retrying,
+showing the user an error, and billing for the attempt can act on the code
+directly, distinguishing a rate-limited provider from a bug in the model's
+pandas from a sandbox timeout. Codes are part of the API; messages can be
+reworded freely.
 
-`ExecutionError` means the code never ran (timeout, killed process).
-`PythonInterpreterError` means it ran and failed, which is the model's problem
-and is handed back to it as a tool result.
+`ExecutionError` means the sandboxed code never ran to completion — a
+timeout, or the process was killed. `PythonInterpreterError` means it ran and
+raised, which is the model's problem: it comes back as a tool result so the
+model can see the traceback and fix its own code.
 
 ---
 
@@ -139,8 +142,8 @@ globals and have dangerous operations blocked.
 
 ## Handle/snapshot pattern
 
-Large objects (DataFrames, arrays, query results) never appear in message
-history. Instead:
+Large objects (DataFrames, arrays, query results) live in the `SessionCache`
+and are represented in message history by a compact snapshot:
 
 1. The tool result calls `SessionCache.put(name, value)`.
 2. `format_tool_output` returns a compact snapshot — shape, columns, a few
@@ -148,7 +151,8 @@ history. Instead:
 3. The model writes Python against the handle name (`sales_df`, `result_2`,
    etc.) to operate on the data.
 
-This keeps context lean without hiding data from the model.
+This keeps context small while still showing the model enough of the data to
+work with it.
 
 ```
 Tool result →  {"type": "dataframe", "shape": [1200, 5],
@@ -162,13 +166,14 @@ Model code  →  result = sales_df[sales_df.revenue > 1000].groupby("category").
 
 ## Prefix-stable system prompt
 
-The system prompt is never mutated between turns. Only the conversation suffix
-changes. This is a KV-cache discipline: a stable prefix means the provider
-can cache it, reducing latency and cost on long runs with many turns.
+The system prompt is byte-identical across every turn of a run. Only the
+conversation suffix changes. This is a KV-cache discipline: a stable prefix
+lets the provider cache it, reducing latency and cost on long runs with many
+turns.
 
 Reminders, nags, and dynamic state updates are always appended to the suffix.
-The `Harness` enforces this invariant — it has no API to modify the system
-prompt after construction.
+The `Harness` enforces this — it has no API to modify the system prompt after
+construction.
 
 ---
 
@@ -178,20 +183,21 @@ Connector tools start hidden (`visible=False`). The model must call
 `load_connectors(connector_name="...")` before the tools for that connector
 appear in its tool list.
 
-A shorter tool list means the model makes better routing decisions. Loading
-all 40 connectors upfront would overwhelm the tool selection at each turn.
-The model loads only what it needs for the current task.
+A shorter tool list means the model makes better routing decisions at each
+turn. The model loads only the connectors it needs for the current task,
+instead of choosing from every registered connector's tools on every call.
 
 ---
 
 ## Suffix-only reminders
 
-The `Planner` escalates reminders when the model has not made progress for
+The `Planner` escalates reminders when the model has made no progress for
 several turns. These reminders are always appended to the conversation suffix
-as `TextBlock` items. They are never inserted into the prefix.
+as `TextBlock` items, so they change the working set the model reasons over
+without touching the cached prefix.
 
-This preserves the stable-prefix invariant and avoids invalidating the
-provider's KV cache on every reminder injection.
+This preserves the stable-prefix invariant above and keeps the provider's KV
+cache valid across a reminder injection.
 
 ---
 
@@ -204,7 +210,7 @@ Spawned subagents get:
 - A fresh `SessionCache`
 
 Parent state crosses the boundary only through explicit `input_handles`.
-The parent cache is not inherited. This makes subagent behaviour reproducible
+The parent cache is not shared. This makes subagent behaviour reproducible
 and debuggable independently of the parent run.
 
 Subagents cannot spawn further subagents — `SubagentRecursionError` is raised
@@ -214,35 +220,37 @@ if they try.
 
 ## Per-turn accounting
 
-Every turn is recorded on the session tree as a `TurnEntry` from the start of
-the run, not bolted on later:
+Every turn is recorded on the session tree as a `TurnEntry`, as part of the
+same append that records the turn's messages:
 
 - Token counts (input, output, cache read/write) and latency
 - The provider's stop reason
 - Tool error count and the names of the tools visible on that turn
 
-The entry carries counts and metadata only — never raw cache values or the
-full message content, which live in the tree's `MessageEntry` nodes as the
-same `Message` objects the model saw, snapshots and all. A `JsonlSessionStore`
-persists the whole tree to disk, one line per entry, so a run reconstructs
-without dumping raw dataset payloads.
+A `TurnEntry` carries these counts and metadata. The actual message content —
+the same `Message` objects the model saw, snapshots included — lives
+separately in the tree's `MessageEntry` nodes. `JsonlSessionStore` persists
+the whole tree to disk, one line per entry, so a run can be reconstructed
+from disk in full: what was asked, what the model did, what it cost, and how
+long each turn took, all without reading a dataset's actual values back out
+of the log.
 
 ---
 
 ## Key invariants
 
-These are design constraints, not incidental behaviour:
+These are design constraints that tests assert directly, in `tests/`:
 
 - The system prompt is byte-identical across turns.
 - Adapters never mutate harness-owned state.
 - Dynamic reminders are suffix-only.
 - Tool-use messages are always followed by matching tool-result messages before
   the next assistant call.
-- Raw large payloads stay in `SessionCache`; messages and logs receive
-  snapshots only.
+- Large values stay in `SessionCache`. The session tree and the messages sent
+  to the provider hold snapshots of them, never the values themselves.
 - Cache handles are valid Python identifiers.
 - `python_interpreter` uses fresh locals per call.
-- Subagents do not inherit parent cache implicitly.
-- The session tree supports run reconstruction without raw payload leakage.
-
-Tests in `tests/` assert these invariants directly.
+- Subagents do not inherit the parent cache automatically.
+- The session tree can be replayed into the same conversation a run actually
+  had, from disk, without ever reading a cached value's contents back out of
+  the log file.

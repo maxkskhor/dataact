@@ -112,18 +112,18 @@ Subagents (`data/tools/subagent.py`) get a fresh adapter, fresh message history,
 
 ## Key invariants
 
-These are design constraints, not incidental behavior:
+These are deliberate design constraints. Tests should assert them directly:
 
 - System prompt is byte-identical across turns.
 - Adapters never mutate harness-owned state.
 - Dynamic reminders are suffix-only.
 - Tool-use messages are followed by matching tool-result messages before the next assistant call.
-- Raw large payloads stay in `SessionCache`; messages and the session tree receive snapshots only.
+- Large values live in `SessionCache`. Messages and the session tree carry only compact snapshots of them.
 - Cache handles are valid Python identifiers.
 - `python_interpreter` uses fresh locals per call.
 - Subagents do not inherit parent cache implicitly.
 - Subagents cannot recursively register or call `subagent`.
-- The session tree must support run reconstruction without raw payload leakage.
+- A session can be replayed from disk into the exact conversation a run had, without reading any cached value's contents out of the log file.
 
 Tests should assert these invariants directly.
 
