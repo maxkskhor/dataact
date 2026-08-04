@@ -33,7 +33,7 @@ ask(df, "summarise the data", model="google/gemini-2.0-flash-001")
 ask(df, "summarise the data", model="deepseek/deepseek-chat")  # cheap
 
 # or construct it directly:
-from data_harness.providers.openai import OpenRouterAdapter
+from data_harness.llm.providers.openai import OpenRouterAdapter
 ask(df, "...", adapter=OpenRouterAdapter(model="openai/gpt-4o-mini"))
 ```
 
@@ -61,7 +61,7 @@ to opt in.
 
 matplotlib is available inside the interpreter. The model builds a figure and it
 is captured automatically as a `ChartArtifact`. The image bytes are written to
-disk and **never** enter the message history or the JSONL log — only a path
+disk and **never** enter the message history or the session log — only a path
 does, exactly like a cache handle. In Jupyter, `RunResult` and `ChartArtifact`
 render inline.
 
@@ -81,8 +81,8 @@ chat.ask("Which month was highest?")   # remembers context
 ```
 
 `SmartFrame(df).chat("...")` is a pandasai-style wrapper over the same machinery.
-There is also an opt-in pandas accessor — `import data_harness.pandas` then
-`df.chat("...")` — and a `%%ask` notebook magic (`%load_ext data_harness.notebook`).
+There is also an opt-in pandas accessor — `import data_harness.app.pandas` then
+`df.chat("...")` — and a `%%ask` notebook magic (`%load_ext data_harness.app.notebook`).
 
 ## SQL
 

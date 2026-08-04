@@ -76,8 +76,9 @@ class FakeAdapter(ProviderAdapter):
 
 
 class FakeAsyncAdapter(AsyncProviderAdapter):
-    """Scripted async adapter for unit tests. Uses the default stream() from the base
-    class (delivers assembled text as a single chunk via on_chunk)."""
+    """Scripted async adapter for unit tests. Uses the default `stream_events()`
+    from the base class, which synthesises events from the assembled `chat()`
+    response."""
 
     def __init__(self, responses: list[NormalizedResponse]) -> None:
         self._responses = list(responses)

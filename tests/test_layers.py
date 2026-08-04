@@ -25,9 +25,9 @@ PACKAGE = pathlib.Path(__file__).resolve().parent.parent / "data_harness"
 LAYERS = ("llm", "core", "data", "app")
 RANK = {name: index for index, name in enumerate(LAYERS)}
 
-#: Not layered. `eval` is a research harness that sits beside the stack, and
-#: the two package-level modules exist to serve the legacy import paths.
-UNLAYERED = {"eval", "_legacy_paths", "__init__"}
+#: Not layered. `eval` is a research harness that sits beside the stack;
+#: `__init__` is the package root re-exporting the public surface.
+UNLAYERED = {"eval", "__init__"}
 
 
 def _layer_of(module: str) -> str | None:

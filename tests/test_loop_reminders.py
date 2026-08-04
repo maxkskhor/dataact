@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 
+from data_harness.core.hooks import BeforeTurn, Reminder
 from data_harness.data.harness import Harness
 from data_harness.llm.providers.base import (
     NormalizedResponse,
@@ -87,7 +88,6 @@ class TestMaxTurnReminder:
             system="sys",
             tools=[tool],
             max_turns=3,
-            run_dir=str(tmp_path),
         )
         harness.run("go")
         # Turn 2 (index 1) call messages: should include reminder
@@ -122,7 +122,6 @@ class TestMaxTurnReminder:
             system="sys",
             tools=[tool],
             max_turns=2,
-            run_dir=str(tmp_path),
         )
         harness.run("go")
         # Turn 1 call: no tool result yet, reminder might be in original user message
@@ -155,30 +154,27 @@ class TestMaxTurnReminder:
             system=system,
             tools=[tool],
             max_turns=2,
-            run_dir=str(tmp_path),
         )
         harness.run("go")
         for call in adapter._calls:
             assert call["system"] == system
 
     def test_reminder_hooks_called_in_order(self, tmp_path):
-        """Multiple registered reminder hooks are called deterministically."""
+        """Multiple registered BeforeTurn hooks are called deterministically."""
         call_order = []
 
-        def hook_a(cur, max_t):
+        def hook_a(event: BeforeTurn) -> None:
             call_order.append("a")
             return None
 
-        def hook_b(cur, max_t):
+        def hook_b(event: BeforeTurn) -> None:
             call_order.append("b")
             return None
 
         adapter = FakeAdapter([make_text_response("done")])
-        harness = Harness(
-            adapter=adapter, system="sys", tools=[], run_dir=str(tmp_path)
-        )
-        harness.register_reminder(hook_a)
-        harness.register_reminder(hook_b)
+        harness = Harness(adapter=adapter, system="sys", tools=[])
+        harness.on(BeforeTurn, hook_a)
+        harness.on(BeforeTurn, hook_b)
         harness.run("hello")
         assert call_order == ["a", "b"]
 
@@ -186,16 +182,14 @@ class TestMaxTurnReminder:
         """If no current user message, reminder creates a new user message."""
         reminder_text = "Please wrap up."
 
-        def hook(cur, max_t):
-            if cur == 1:
-                return reminder_text
+        def hook(event: BeforeTurn) -> Reminder | None:
+            if event.turn == 1:
+                return Reminder(reminder_text)
             return None
 
         adapter = FakeAdapter([make_text_response("done")])
-        harness = Harness(
-            adapter=adapter, system="sys", tools=[], run_dir=str(tmp_path)
-        )
-        harness.register_reminder(hook)
+        harness = Harness(adapter=adapter, system="sys", tools=[])
+        harness.on(BeforeTurn, hook)
         harness.run("hello")
         # The reminder text should appear somewhere in the messages
         turn1_messages = adapter._calls[0]["messages"]

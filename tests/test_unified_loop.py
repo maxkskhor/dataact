@@ -118,7 +118,6 @@ async def test_stream_records_run_result_on_success(tmp_path):
         adapter=FakeAsyncAdapter([FakeAsyncAdapter.text("done")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
 
     events = [evt async for evt in harness.run_stream("go")]
@@ -148,7 +147,6 @@ async def test_stream_keeps_usage_when_the_provider_fails_mid_run(tmp_path):
         adapter=adapter,
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
 
     events = [evt async for evt in harness.ask_stream("go")]
@@ -170,9 +168,7 @@ async def test_non_streaming_error_also_reports_usage(tmp_path):
         [FakeAsyncAdapter.tool_use("tu_1", "echo", {"value": "hi"})],
         RuntimeError("provider down"),
     )
-    harness = AsyncHarness(
-        adapter=adapter, system="sys", tools=[echo_spec()], run_dir=str(tmp_path)
-    )
+    harness = AsyncHarness(adapter=adapter, system="sys", tools=[echo_spec()])
 
     result = await harness.run_result("go")
 
@@ -225,7 +221,6 @@ async def test_stream_and_result_paths_agree(tmp_path):
         adapter=FakeAsyncAdapter(script()),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     async for _ in streamed.run_stream("go"):
         pass
@@ -234,7 +229,6 @@ async def test_stream_and_result_paths_agree(tmp_path):
         adapter=FakeAsyncAdapter(script()),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     direct_result = await direct.run_result("go")
 
@@ -262,7 +256,6 @@ def test_sync_and_async_harness_produce_identical_results(tmp_path):
         adapter=FakeAdapter(script(FakeAdapter)),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     ).run_result("go")
 
     async_result = asyncio.run(
@@ -270,7 +263,6 @@ def test_sync_and_async_harness_produce_identical_results(tmp_path):
             adapter=FakeAsyncAdapter(script(FakeAsyncAdapter)),
             system="sys",
             tools=[echo_spec()],
-            run_dir=str(tmp_path),
         ).run_result("go")
     )
 
@@ -281,7 +273,7 @@ def test_sync_and_async_harness_produce_identical_results(tmp_path):
 
 def test_sync_harness_still_calls_the_sync_adapter(tmp_path):
     adapter = FakeAdapter([FakeAdapter.text("hi")])
-    harness = Harness(adapter=adapter, system="sys", tools=[], run_dir=str(tmp_path))
+    harness = Harness(adapter=adapter, system="sys", tools=[])
 
     harness.run("go")
 
@@ -297,7 +289,6 @@ def test_sync_harness_works_inside_a_running_event_loop(tmp_path):
             adapter=FakeAdapter([FakeAdapter.text("from inside a loop")]),
             system="sys",
             tools=[],
-            run_dir=str(tmp_path),
         )
         return harness.run("go")
 
@@ -340,7 +331,6 @@ def test_sync_driver_runs_tool_handlers_on_the_calling_thread(tmp_path):
         ),
         system="sys",
         tools=[spec],
-        run_dir=str(tmp_path),
     ).run("go")
 
     assert seen == [threading.current_thread().name]
@@ -365,7 +355,6 @@ def test_sync_driver_keeps_a_thread_bound_resource_usable(tmp_path):
         ),
         system="sys",
         tools=[spec],
-        run_dir=str(tmp_path),
     )
     harness.run("go")
 
@@ -387,7 +376,6 @@ def test_sync_driver_leaves_the_ambient_event_loop_alone(tmp_path):
             adapter=FakeAdapter([FakeAdapter.text("hi")]),
             system="sys",
             tools=[],
-            run_dir=str(tmp_path),
         ).run("go")
         assert asyncio.get_event_loop() is loop
     finally:
@@ -435,7 +423,6 @@ def test_keyboard_interrupt_escapes_the_sync_driver(tmp_path):
             ),
             system="sys",
             tools=[spec],
-            run_dir=str(tmp_path),
         ).run("go")
 
 
@@ -464,7 +451,6 @@ async def test_async_driver_offloads_blocking_handlers(tmp_path):
         ),
         system="sys",
         tools=[spec],
-        run_dir=str(tmp_path),
     ).run("go")
 
     assert seen and seen != [threading.current_thread().name]
@@ -498,7 +484,6 @@ def test_sync_driver_dispatch_is_overridable(tmp_path):
         ),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.run("go")
 
@@ -525,7 +510,6 @@ async def test_async_driver_dispatch_is_overridable(tmp_path):
         ),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     await harness.run("go")
 
@@ -540,20 +524,14 @@ async def test_async_driver_dispatch_is_overridable(tmp_path):
         "_system",
         "_max_turns",
         "_environment",
-        "_reminders",
-        "_run_file",
         "_on_code",
         "_code_only",
     ],
 )
 def test_both_drivers_carry_the_loop_state(attribute, tmp_path):
     """Loop state lives on the shared base, so neither driver is a hollow shell."""
-    sync = Harness(
-        adapter=FakeAdapter([]), system="sys", tools=[], run_dir=str(tmp_path)
-    )
-    asynchronous = AsyncHarness(
-        adapter=FakeAsyncAdapter([]), system="sys", tools=[], run_dir=str(tmp_path)
-    )
+    sync = Harness(adapter=FakeAdapter([]), system="sys", tools=[])
+    asynchronous = AsyncHarness(adapter=FakeAsyncAdapter([]), system="sys", tools=[])
     assert hasattr(sync, attribute)
     assert hasattr(asynchronous, attribute)
 
@@ -693,14 +671,12 @@ def test_harness_inspection_properties_are_live(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("hi")]),
         system="the system prompt",
         tools=[],
-        run_dir=str(tmp_path),
         max_turns=9,
     )
 
     assert harness.system == "the system prompt"
     assert harness.max_turns == 9
     assert harness.tools == []
-    assert harness.reminders == []
 
     harness.tools.append(echo_spec())
     assert [t.name for t in harness.tools] == ["echo"]
@@ -810,7 +786,6 @@ async def test_stream_reports_max_turns_exceeded(tmp_path):
         system="sys",
         tools=[echo_spec()],
         max_turns=1,
-        run_dir=str(tmp_path),
     )
 
     async for _ in harness.run_stream("go"):
@@ -836,7 +811,6 @@ async def test_abandoning_a_stream_still_accounts_for_it(tmp_path):
         adapter=FakeAsyncAdapter([FakeAsyncAdapter.text("done")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
 
     stream = harness.run_stream("go")
@@ -862,7 +836,6 @@ async def test_an_abandoned_stream_keeps_the_usage_of_finished_turns(tmp_path):
         ),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
 
     stream = harness.run_stream("go")
@@ -917,7 +890,6 @@ async def test_tool_result_events_cover_failures_and_missing_tools(tmp_path):
         ),
         system="sys",
         tools=[boom],
-        run_dir=str(tmp_path),
     )
 
     events = [e async for e in harness.run_stream("go")]

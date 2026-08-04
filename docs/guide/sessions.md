@@ -10,7 +10,7 @@ need to refer back to earlier results, use `AgentSession`.
 
 ```python
 from data_harness import Agent
-from data_harness.providers.anthropic import AnthropicAdapter
+from data_harness.llm.providers.anthropic import AnthropicAdapter
 
 agent = Agent(
     adapter=AnthropicAdapter(model="claude-sonnet-4-6"),
@@ -72,9 +72,6 @@ print(session.turns)
 
 # The RunResult from the last ask_result() call
 print(session.last_result)
-
-# Path to the JSONL log (all turns written to one file)
-print(session.run_file)
 ```
 
 ---

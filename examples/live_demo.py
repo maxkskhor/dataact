@@ -32,7 +32,9 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"== Tier 1: ask() with a structured answer ({args.model}) ==")
-    r1 = ask(SALES, "What is the total revenue? Reply with the number.", model=args.model)
+    r1 = ask(
+        SALES, "What is the total revenue? Reply with the number.", model=args.model
+    )
     print("value:", r1.value)
     print("text :", r1.text.strip()[:200])
 

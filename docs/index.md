@@ -5,14 +5,14 @@
 </p>
 
 **The controlled data-agent SDK.** Python, not bash. Large data stays in a cache
-as handles, never in the prompt. Every run is logged — and eval-backed.
+as handles, never in the prompt. Every run is recorded as a full session tree — and eval-backed.
 
 Most data-agent tooling makes you pick between giving a model a **shell**
 (unsafe, irreproducible) and **single-shot code-gen** (no state, no multi-step).
 `data-harness` is the controlled middle path: the model works through a
 constrained Python interpreter, large objects live in a `SessionCache` exposed
 as compact handle snapshots (so a 100k-row table never hits the context window),
-every turn is logged to JSONL, and a built-in [evaluation harness](guide/evaluation.md)
+every run is recorded as an append-only session tree, and a built-in [evaluation harness](guide/evaluation.md)
 measures quality and cost across providers.
 
 ---
@@ -62,7 +62,7 @@ dh "What was total revenue?" sales.csv
 - **[Evaluation](guide/evaluation.md)** — programmatic graders, multi-turn cases, cost leaderboards, and tracked results.
 - **[Sessions](guide/sessions.md)** · **[Connectors](guide/connectors.md)** · **[Async & Streaming](guide/async.md)** — multi-turn state, progressive tools, streaming.
 - **[Examples](guide/examples.md)** — runnable scripts and a demo notebook.
-- **[Architecture](guide/design.md)** — *why* the harness is built this way (no bash, handle/snapshot, prefix-stable prompt, subagents, JSONL logs).
+- **[Architecture](guide/design.md)** — *why* the harness is built this way (no bash, handle/snapshot, prefix-stable prompt, subagents, the session tree).
 
 ---
 

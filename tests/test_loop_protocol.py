@@ -20,7 +20,6 @@ code, and are worth remembering:
 from __future__ import annotations
 
 import asyncio
-import json
 import subprocess
 import sys
 import textwrap
@@ -92,7 +91,6 @@ def test_the_approval_gate_only_covers_the_interpreter(tmp_path):
         ),
         system="sys",
         tools=[spec],
-        run_dir=str(tmp_path),
         code_only=True,
     )
     harness.run("go")
@@ -117,7 +115,6 @@ def test_a_blocked_interpreter_call_is_not_an_error(tmp_path):
         ),
         system="sys",
         tools=agent._build_tools(),
-        run_dir=str(tmp_path),
         on_code=lambda code: False,
     )
     harness.run("go")
@@ -140,7 +137,6 @@ def test_code_only_echoes_without_executing(tmp_path):
         ),
         system="sys",
         tools=agent._build_tools(cache=agent.cache),
-        run_dir=str(tmp_path),
         cache=agent.cache,
         code_only=True,
     )
@@ -161,7 +157,6 @@ def test_run_ids_reach_last_result(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("hi")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
 
     returned = harness.run_result("go", run_id="run-7", session_id="sess-9")
@@ -198,7 +193,8 @@ async def test_streamed_session_turns_are_stamped(tmp_path):
 
 
 def test_latency_is_measured_not_hardcoded(tmp_path):
-    """The JSONL log's latency must reflect the real provider call."""
+    """The session's per-turn latency must reflect the real provider call."""
+    from data_harness.core.session.entries import TurnEntry
 
     class SlowAdapter(FakeAdapter):
         def chat(self, system, messages, tools):
@@ -209,17 +205,11 @@ def test_latency_is_measured_not_hardcoded(tmp_path):
         adapter=SlowAdapter([FakeAdapter.text("hi")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.run("go")
 
-    assert harness.run_file is not None
-    records = [
-        json.loads(line)
-        for line in open(harness.run_file).read().splitlines()
-        if line.strip()
-    ]
-    assert records[0]["metrics"]["latency_ms"] >= 50
+    turns = [e for e in harness.session.store.entries() if isinstance(e, TurnEntry)]
+    assert turns[0].latency_ms >= 50
 
 
 def test_a_provider_error_yields_no_partial_text(tmp_path):
@@ -229,9 +219,7 @@ def test_a_provider_error_yields_no_partial_text(tmp_path):
         def chat(self, system, messages, tools):
             raise RuntimeError("down")
 
-    result = Harness(
-        adapter=Broken([]), system="sys", tools=[], run_dir=str(tmp_path)
-    ).run_result("go")
+    result = Harness(adapter=Broken([]), system="sys", tools=[]).run_result("go")
 
     assert result.status == "error"
     assert result.text == ""
@@ -246,14 +234,13 @@ async def test_provider_error_on_the_first_turn(tmp_path):
         async def chat(self, system, messages, tools):
             raise RuntimeError("down")
 
-    result = await AsyncHarness(
-        adapter=Broken([]), system="sys", tools=[], run_dir=str(tmp_path)
-    ).run_result("go")
+    result = await AsyncHarness(adapter=Broken([]), system="sys", tools=[]).run_result(
+        "go"
+    )
 
     assert result.status == "error"
     assert result.turns == 1
     assert result.usage.input_tokens == 0
-    assert result.run_file is not None
 
 
 # ── the effect protocol ─────────────────────────────────────────────────────
@@ -279,7 +266,6 @@ def test_a_handler_returning_failed_is_not_mistaken_for_a_failure(tmp_path):
         ),
         system="sys",
         tools=[spec],
-        run_dir=str(tmp_path),
     )
     harness.run("go")
 
@@ -299,7 +285,6 @@ def test_the_effect_and_answer_sequence_lines_up(tmp_path):
         adapter=FakeAdapter([]),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness._begin_run("go")
     plan = harness._plan()
@@ -336,7 +321,6 @@ def test_every_tool_is_dispatched_before_any_result_is_announced(tmp_path):
         adapter=FakeAdapter([]),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness._begin_run("go")
     plan = harness._plan()
@@ -402,7 +386,6 @@ def test_sync_driver_awaits_async_tool_handlers(tmp_path):
         ),
         system="sys",
         tools=[spec],
-        run_dir=str(tmp_path),
     )
     harness.run("go")
 
@@ -487,7 +470,6 @@ async def test_abandoning_a_stream_closes_the_provider_stream(tmp_path):
         adapter=TrackingAdapter([FakeAsyncAdapter.text("hello")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
 
     stream = harness.run_stream("go")
@@ -580,9 +562,7 @@ def test_a_request_answered_with_none_fails_loudly(tmp_path):
     Unchecked, the loop does `answer.value` and raises AttributeError several
     frames away from the driver that actually got it wrong.
     """
-    harness = Harness(
-        adapter=FakeAdapter([]), system="sys", tools=[], run_dir=str(tmp_path)
-    )
+    harness = Harness(adapter=FakeAdapter([]), system="sys", tools=[])
     harness._begin_run("go")
     plan = harness._plan()
     plan.send(None)
@@ -596,7 +576,6 @@ def test_a_tool_request_answered_with_none_fails_loudly(tmp_path):
         adapter=FakeAdapter([]),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness._begin_run("go")
     plan = harness._plan()
@@ -617,7 +596,6 @@ def test_a_new_run_clears_the_previous_result(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("first")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.run("go")
     assert harness.last_result is not None

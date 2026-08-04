@@ -1,13 +1,15 @@
-"""Tests for Phase 2: shared TurnSummary used by both logger and RunResult.
+"""Per-turn accounting invariants, now recorded on the session tree.
 
-TDD: written before implementation.
+These used to assert against the JSONL turn log; that log is gone (the
+session tree replaced it), but the invariants it protected — one record per
+turn, correct token/latency metrics, tool-error counting, visible-tool
+tracking, no raw cache payloads leaking into the record — still matter and
+are pinned here against `TurnEntry` instead.
 """
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
+from data_harness.core.session.entries import TurnEntry
 from data_harness.data.cache import SessionCache
 from data_harness.data.harness import Harness
 from data_harness.llm.providers.base import NormalizedResponse, StopReason
@@ -33,19 +35,17 @@ def make_text_response(
     )
 
 
-def read_jsonl(path: str) -> list[dict]:
-    lines = Path(path).read_text().strip().splitlines()
-    return [json.loads(line) for line in lines if line.strip()]
+def turn_entries(harness: Harness) -> list[TurnEntry]:
+    return [e for e in harness.session.store.entries() if isinstance(e, TurnEntry)]
 
 
 # ---------------------------------------------------------------------------
-# JSONL format invariants preserved
+# Session tree invariants preserved from the old JSONL log
 # ---------------------------------------------------------------------------
 
 
-class TestJsonlInvariants:
-    def test_one_line_per_turn(self, tmp_path):
-        """JSONL must still have exactly one line per turn."""
+class TestSessionTurnInvariants:
+    def test_one_turn_entry_per_turn(self, tmp_path):
         tool_resp = NormalizedResponse(
             stop_reason=StopReason.TOOL_USE,
             content=[
@@ -66,100 +66,49 @@ class TestJsonlInvariants:
             handler=lambda text: text,
         )
         adapter = FakeAdapter([tool_resp, final_resp])
-        harness = Harness(
-            adapter=adapter,
-            system="s",
-            tools=[echo_spec],
-            max_turns=5,
-            run_dir=str(tmp_path),
-        )
-        result = harness.run_result("go")
-        records = read_jsonl(result.run_file)
-        assert len(records) == 2  # one tool-use turn, one end-turn
+        harness = Harness(adapter=adapter, system="s", tools=[echo_spec], max_turns=5)
+        harness.run_result("go")
+        assert len(turn_entries(harness)) == 2  # one tool-use turn, one end-turn
 
-    def test_jsonl_has_turn_number(self, tmp_path):
+    def test_turn_entry_has_turn_number(self, tmp_path):
         adapter = FakeAdapter([make_text_response("ok")])
-        harness = Harness(
-            adapter=adapter, system="s", tools=[], max_turns=5, run_dir=str(tmp_path)
-        )
-        result = harness.run_result("x")
-        records = read_jsonl(result.run_file)
-        assert records[0]["turn"] == 1
+        harness = Harness(adapter=adapter, system="s", tools=[], max_turns=5)
+        harness.run_result("x")
+        assert turn_entries(harness)[0].turn == 1
 
-    def test_jsonl_metrics_present(self, tmp_path):
+    def test_turn_entry_metrics_present(self, tmp_path):
         adapter = FakeAdapter(
             [make_text_response("ok", input_tokens=12, output_tokens=4)]
         )
-        harness = Harness(
-            adapter=adapter, system="s", tools=[], max_turns=5, run_dir=str(tmp_path)
-        )
-        result = harness.run_result("x")
-        records = read_jsonl(result.run_file)
-        metrics = records[0]["metrics"]
-        assert metrics["input_tokens"] == 12
-        assert metrics["output_tokens"] == 4
+        harness = Harness(adapter=adapter, system="s", tools=[], max_turns=5)
+        harness.run_result("x")
+        entry = turn_entries(harness)[0]
+        assert entry.input_tokens == 12
+        assert entry.output_tokens == 4
 
-    def test_jsonl_no_raw_cache_payloads(self, tmp_path):
-        """JSONL must not contain raw cache values — only storage metadata."""
+    def test_session_holds_no_raw_cache_payloads(self, tmp_path):
+        """The session must not contain raw cache values — only turn metadata."""
         cache = SessionCache()
         cache.put("secret", list(range(1000)))
         adapter = FakeAdapter([make_text_response("ok")])
         harness = Harness(
-            adapter=adapter,
-            system="s",
-            tools=[],
-            max_turns=5,
-            run_dir=str(tmp_path),
-            cache=cache,
+            adapter=adapter, system="s", tools=[], max_turns=5, cache=cache
         )
-        result = harness.run_result("go")
-        raw = Path(result.run_file).read_text()
-        # The raw list should not appear in the log
-        assert "999" not in raw or "storage_type" in raw  # metadata may mention type
-
-    def test_jsonl_system_hash_stable(self, tmp_path):
-        """System hash must be identical across turns."""
-        tool_resp = NormalizedResponse(
-            stop_reason=StopReason.TOOL_USE,
-            content=[
-                ToolUseBlock(
-                    tool_use_id="t1", tool_name="echo", tool_input={"text": "x"}
-                )
-            ],
-            input_tokens=5,
-            output_tokens=2,
-            cache_read_tokens=0,
-            cache_write_tokens=0,
-        )
-        final_resp = make_text_response("done")
-        echo_spec = ToolSpec(
-            name="echo",
-            description="echo",
-            input_schema={"type": "object", "properties": {"text": {"type": "string"}}},
-            handler=lambda text: text,
-        )
-        adapter = FakeAdapter([tool_resp, final_resp])
-        harness = Harness(
-            adapter=adapter,
-            system="same system",
-            tools=[echo_spec],
-            max_turns=5,
-            run_dir=str(tmp_path),
-        )
-        result = harness.run_result("go")
-        records = read_jsonl(result.run_file)
-        hashes = [r["system_hash"] for r in records]
-        assert len(set(hashes)) == 1, "system_hash should be identical across turns"
+        harness.run_result("go")
+        # The turn entries carry counts and metadata only, never handle values.
+        for entry in turn_entries(harness):
+            assert not hasattr(entry, "cache_snapshot")
+            assert not hasattr(entry, "cache_values")
 
 
 # ---------------------------------------------------------------------------
-# RunResult aggregation equals sum of per-turn JSONL metrics
+# RunResult aggregation equals sum of per-turn session metrics
 # ---------------------------------------------------------------------------
 
 
 class TestUsageAggregation:
-    def test_aggregated_usage_equals_sum_of_jsonl(self, tmp_path):
-        """result.usage must equal the sum of per-turn metrics in JSONL."""
+    def test_aggregated_usage_equals_sum_of_turn_entries(self, tmp_path):
+        """result.usage must equal the sum of per-turn metrics in the session."""
         tool_resp = NormalizedResponse(
             stop_reason=StopReason.TOOL_USE,
             content=[
@@ -187,35 +136,28 @@ class TestUsageAggregation:
             handler=lambda text: text,
         )
         adapter = FakeAdapter([tool_resp, final_resp])
-        harness = Harness(
-            adapter=adapter,
-            system="s",
-            tools=[echo_spec],
-            max_turns=5,
-            run_dir=str(tmp_path),
-        )
+        harness = Harness(adapter=adapter, system="s", tools=[echo_spec], max_turns=5)
         result = harness.run_result("go")
-        records = read_jsonl(result.run_file)
+        entries = turn_entries(harness)
 
-        total_input = sum(r["metrics"]["input_tokens"] for r in records)
-        total_output = sum(r["metrics"]["output_tokens"] for r in records)
-        total_cache_read = sum(r["metrics"]["cache_read_tokens"] for r in records)
-        total_cache_write = sum(r["metrics"]["cache_write_tokens"] for r in records)
-
-        assert result.usage.input_tokens == total_input
-        assert result.usage.output_tokens == total_output
-        assert result.usage.cache_read_tokens == total_cache_read
-        assert result.usage.cache_write_tokens == total_cache_write
+        assert result.usage.input_tokens == sum(e.input_tokens for e in entries)
+        assert result.usage.output_tokens == sum(e.output_tokens for e in entries)
+        assert result.usage.cache_read_tokens == sum(
+            e.cache_read_tokens for e in entries
+        )
+        assert result.usage.cache_write_tokens == sum(
+            e.cache_write_tokens for e in entries
+        )
 
 
 # ---------------------------------------------------------------------------
-# Visible tools in JSONL
+# Visible tools recorded per turn
 # ---------------------------------------------------------------------------
 
 
 class TestVisibleToolsLogged:
-    def test_visible_tool_names_in_jsonl(self, tmp_path):
-        """JSONL should record the names of visible tools for reconstruction."""
+    def test_visible_tool_names_on_turn_entry(self, tmp_path):
+        """The session should record the names of visible tools for reconstruction."""
         echo_spec = ToolSpec(
             name="echo",
             description="echo",
@@ -232,28 +174,22 @@ class TestVisibleToolsLogged:
         )
         adapter = FakeAdapter([make_text_response("ok")])
         harness = Harness(
-            adapter=adapter,
-            system="s",
-            tools=[echo_spec, hidden_spec],
-            max_turns=5,
-            run_dir=str(tmp_path),
+            adapter=adapter, system="s", tools=[echo_spec, hidden_spec], max_turns=5
         )
-        result = harness.run_result("go")
-        records = read_jsonl(result.run_file)
-        record = records[0]
-        assert "visible_tools" in record
-        assert "echo" in record["visible_tools"]
-        assert "hidden_tool" not in record["visible_tools"]
+        harness.run_result("go")
+        entry = turn_entries(harness)[0]
+        assert "echo" in entry.visible_tools
+        assert "hidden_tool" not in entry.visible_tools
 
 
 # ---------------------------------------------------------------------------
-# Tool error counting in JSONL
+# Tool error counting
 # ---------------------------------------------------------------------------
 
 
 class TestToolErrorCount:
-    def test_tool_errors_counted_in_jsonl(self, tmp_path):
-        """JSONL should record tool_error_count without changing message flow."""
+    def test_tool_errors_counted_on_turn_entry(self, tmp_path):
+        """The session should record tool_error_count without changing message flow."""
 
         def boom(**_kwargs):
             raise ValueError("exploded")
@@ -274,16 +210,8 @@ class TestToolErrorCount:
         )
         final_resp = make_text_response("recovered")
         adapter = FakeAdapter([tool_resp, final_resp])
-        harness = Harness(
-            adapter=adapter,
-            system="s",
-            tools=[error_spec],
-            max_turns=5,
-            run_dir=str(tmp_path),
-        )
+        harness = Harness(adapter=adapter, system="s", tools=[error_spec], max_turns=5)
         result = harness.run_result("go")
         assert result.status == "success"  # harness continues after tool errors
-        records = read_jsonl(result.run_file)
-        tool_turn = records[0]
-        assert "tool_error_count" in tool_turn
-        assert tool_turn["tool_error_count"] == 1
+        tool_turn = turn_entries(harness)[0]
+        assert tool_turn.tool_error_count == 1

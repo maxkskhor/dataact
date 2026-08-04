@@ -25,9 +25,6 @@ layer's implementation is backed by the `SessionCache`; `NullEnvironment` is
 the domain-free default. That is why the harness can be read, tested, and
 reused without pandas.
 
-Every pre-layering import path (`data_harness.loop`, `data_harness.types`, …)
-still resolves, to the same module object rather than a copy.
-
 ---
 
 ## One loop, two drivers
@@ -63,8 +60,8 @@ Everything else follows from that:
   be retried with a different model without destroying the first attempt.
 - **Compaction is an entry, not an edit.** The compacted turns stay in the
   tree; moving the leaf back restores them.
-- Writing is one line per entry, where the older `runs/*.jsonl` turn log
-  re-serialises the whole history every turn.
+- Writing is one line per entry — linear in the number of entries, not
+  quadratic in the size of the history.
 
 A derived context is always something a provider will accept: a tool call with
 no result, or a result with no call, is dropped. Both are reachable without a
@@ -215,19 +212,20 @@ if they try.
 
 ---
 
-## JSONL turn logging
+## Per-turn accounting
 
-Every turn is logged to a `.jsonl` file from the start of the run, not bolted
-on later. Each line is a complete turn record:
+Every turn is recorded on the session tree as a `TurnEntry` from the start of
+the run, not bolted on later:
 
-- The system prompt and message history
-- The provider response
-- Tool results
-- Latency and token counts
-- Cache storage metadata
+- Token counts (input, output, cache read/write) and latency
+- The provider's stop reason
+- Tool error count and the names of the tools visible on that turn
 
-The log is designed to reconstruct a run without dumping raw dataset payloads.
-Cache handles are logged as snapshots, not raw values.
+The entry carries counts and metadata only — never raw cache values or the
+full message content, which live in the tree's `MessageEntry` nodes as the
+same `Message` objects the model saw, snapshots and all. A `JsonlSessionStore`
+persists the whole tree to disk, one line per entry, so a run reconstructs
+without dumping raw dataset payloads.
 
 ---
 
@@ -245,6 +243,6 @@ These are design constraints, not incidental behaviour:
 - Cache handles are valid Python identifiers.
 - `python_interpreter` uses fresh locals per call.
 - Subagents do not inherit parent cache implicitly.
-- JSONL logs support run reconstruction without raw payload leakage.
+- The session tree supports run reconstruction without raw payload leakage.
 
 Tests in `tests/` assert these invariants directly.

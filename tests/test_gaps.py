@@ -45,7 +45,6 @@ def make_harness(
         system="s",
         tools=tools or [],
         max_turns=5,
-        run_dir=str(tmp_path),
         cache=cache,
     )
 
@@ -117,7 +116,6 @@ class TestStopReasonSemantics:
             system="s",
             tools=[echo_spec],
             max_turns=3,
-            run_dir=str(tmp_path),
         )
         result = harness.run_result("go")
         assert result.status == "max_turns_exceeded"
@@ -145,7 +143,6 @@ class TestStatusError:
             system="s",
             tools=[],
             max_turns=5,
-            run_dir=str(tmp_path),
         )
         result = harness.run_result("go")
         assert result.status == "error"
@@ -167,7 +164,6 @@ class TestStatusError:
             system="s",
             tools=[],
             max_turns=5,
-            run_dir=str(tmp_path),
         )
         with pytest.raises(RuntimeError, match="boom"):
             harness.run("go")

@@ -280,7 +280,7 @@ def ask(
             structured answer, run one follow-up turn asking the model to record
             it via ``answer()`` so ``.value`` is populated.
         max_turns: Hard cap on provider turns.
-        run_dir: Directory for JSONL logs and chart artefacts.
+        run_dir: Directory for chart artefacts and subagent working state.
 
     Returns:
         A `RunResult`. Use ``.text`` for prose, ``.value`` for the structured

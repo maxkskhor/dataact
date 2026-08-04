@@ -11,7 +11,7 @@ and token-level streaming. They mirror the synchronous API exactly, with
 ```python
 import asyncio
 from data_harness import AsyncAgent
-from data_harness.providers.anthropic import AnthropicAdapter
+from data_harness.llm.providers.anthropic import AnthropicAdapter
 
 async def main():
     agent = AsyncAgent(
@@ -108,8 +108,8 @@ token-level events. The default implementation calls `chat()` and synthesises
 the standard event sequence from the assembled response:
 
 ```python
-from data_harness.providers.base import AsyncProviderAdapter, NormalizedResponse
-from data_harness.streaming import StreamEvent
+from data_harness.llm.providers.base import AsyncProviderAdapter, NormalizedResponse
+from data_harness.llm.streaming import StreamEvent
 from collections.abc import AsyncGenerator
 
 class MyAdapter(AsyncProviderAdapter):

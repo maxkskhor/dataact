@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
-from data_harness.core.hooks import Decision, Event, HookRegistry
+from data_harness.core.hooks import BeforeTurn, Decision, Event, HookRegistry, Reminder
 from data_harness.core.result import CacheStorageInfo, RunResult, Usage, unwrap_text
 from data_harness.core.schema import infer_input_schema
 from data_harness.data.cache import SessionCache
@@ -98,6 +98,21 @@ class ConnectorBuilder:
         return fn
 
 
+def _wire_planner_reminders(harness: Any, planner: Planner) -> None:
+    """Nag the model about stale plan items via a `BeforeTurn` hook.
+
+    `Planner.reminder_hook` predates hooks and returns plain text; this
+    adapts it to the general form so the planner does not need its own
+    wiring mechanism.
+    """
+
+    def hook(event: BeforeTurn) -> Reminder | None:
+        text = planner.reminder_hook(event.turn, event.max_turns)
+        return Reminder(text) if text else None
+
+    harness.on(BeforeTurn, hook)
+
+
 _SelfT = TypeVar("_SelfT", bound="_AgentBase")
 
 
@@ -130,7 +145,6 @@ class _AgentBase:
         self._sandbox_options = sandbox_options
         self._on_code = on_code
         self._code_only = code_only
-        self._last_run_file: str | None = None
         self._connectors: dict[str, _ConnectorDefinition] = {}
         self._connector_tools: list[_ConnectorToolDefinition] = []
         self._planner_enabled = False
@@ -188,10 +202,6 @@ class _AgentBase:
     @property
     def cache(self) -> SessionCache:
         return self._cache
-
-    @property
-    def last_run_file(self) -> str | None:
-        return self._last_run_file
 
     @property
     def last_result(self) -> RunResult | None:
@@ -364,7 +374,6 @@ class _AgentBase:
         return _EXPLAIN_TEMPLATE.format(
             system=_truncate(self._system),
             max_turns=self._max_turns,
-            run_dir=self._run_dir if self._run_dir is not None else "./runs",
         )
 
     # ── tool wiring ─────────────────────────────────────────────────────────
@@ -463,7 +472,6 @@ class _AgentBase:
                 adapter_factory=self._subagent_factory,
                 parent_tools=self._build_tools(planner=None, cache=cache),
                 parent_cache=cache,
-                run_dir=self._effective_run_dir,
                 make_sub_tools=lambda sub_cache: self._build_tools(
                     planner=None, cache=sub_cache
                 ),
@@ -487,8 +495,6 @@ class _AgentBase:
             "code_only": self._code_only,
             "hooks": self._hooks,
         }
-        if self._run_dir is not None:
-            kwargs["run_dir"] = str(self._run_dir)
         return kwargs, effective_planner
 
     # ── replay cache ────────────────────────────────────────────────────────
@@ -520,7 +526,6 @@ class _AgentBase:
             text=text,
             status="success",
             turns=0,
-            run_file=None,
             stop_reason=None,
             usage=Usage(),
             cache_snapshots=self._cache.list_handles(),
@@ -569,7 +574,8 @@ class Agent(_AgentBase):
         system: System prompt passed unchanged to every `Harness` run.
         max_turns: Hard cap on provider turns per `run` call.
         cache: Shared `SessionCache`. A fresh cache is created when ``None``.
-        run_dir: Directory for JSONL logs. Defaults to ``./runs``.
+        run_dir: Directory for chart artefacts and subagent working state.
+            Defaults to ``./runs``.
         execution: ``"inprocess"`` or ``"subprocess"`` interpreter isolation.
         sandbox_options: Extra options for the subprocess interpreter.
         on_code: Approval gate called with interpreter code before it runs.
@@ -640,7 +646,6 @@ class Agent(_AgentBase):
         result = harness.run_result(
             user_message, run_id=str(uuid.uuid4()), session_id=None
         )
-        self._last_run_file = harness.run_file
         self._last_result = result
         self._record_replay(key, harness, result)
         return result
@@ -669,7 +674,7 @@ class Agent(_AgentBase):
         kwargs, effective_planner = self._harness_kwargs(cache=cache, planner=planner)
         harness = Harness(adapter=self._adapter, **kwargs)
         if effective_planner is not None:
-            harness.register_reminder(effective_planner.reminder_hook)
+            _wire_planner_reminders(harness, effective_planner)
         return harness
 
 
@@ -736,7 +741,6 @@ class AsyncAgent(_AgentBase):
         result = await harness.run_result(
             user_message, run_id=str(uuid.uuid4()), session_id=None
         )
-        self._last_run_file = harness.run_file
         self._last_result = result
         self._record_replay(key, harness, result)
         return result
@@ -792,7 +796,6 @@ class AsyncAgent(_AgentBase):
         async with aclosing(harness.run_stream(user_message)) as events:
             async for event in events:
                 yield event
-        self._last_run_file = harness.run_file
         if harness.last_result is not None:
             self._last_result = harness._stamp(harness.last_result, run_id, None)
             self._record_replay(key, harness, harness.last_result)
@@ -806,7 +809,7 @@ class AsyncAgent(_AgentBase):
         kwargs, effective_planner = self._harness_kwargs(cache=cache, planner=planner)
         harness = AsyncHarness(adapter=self._adapter, **kwargs)
         if effective_planner is not None:
-            harness.register_reminder(effective_planner.reminder_hook)
+            _wire_planner_reminders(harness, effective_planner)
         return harness
 
 
@@ -852,10 +855,6 @@ class _SessionBase:
     def cache(self) -> SessionCache:
         return self._cache
 
-    @property
-    def run_file(self) -> str | None:
-        return self._harness.run_file
-
     def put(self, name: str, value: Any, *, overwrite: bool = False) -> str:
         """Store a value in the session cache and return the handle used.
 
@@ -877,7 +876,6 @@ class _SessionBase:
         self._last_result = result
         self._turns += result.turns
         self._agent._last_harness = self._harness  # type: ignore[attr-defined]
-        self._agent._last_run_file = self._harness.run_file
         self._agent._last_result = result
         return result
 
@@ -965,7 +963,6 @@ class AsyncAgentSession(_SessionBase):
             self._record(self._harness._stamp(result, run_id, self._id))
         else:  # pragma: no cover - the loop always sets a result
             self._agent._last_harness = self._harness
-            self._agent._last_run_file = self._harness.run_file
 
 
 def _synthetic_text_events(text: str) -> list[StreamEvent]:
@@ -1021,7 +1018,6 @@ Agent is a thin composition layer. The equivalent explicit wiring is:
         system={system!r},
         tools=tools,
         max_turns={max_turns},
-        run_dir={run_dir!r},
         cache=cache,
     )
     harness.run(user_message)

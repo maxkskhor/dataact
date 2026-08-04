@@ -28,7 +28,6 @@ def make_subagent_spec(
     adapter_factory: Callable[[], ProviderAdapter | AsyncProviderAdapter],
     parent_tools: list[ToolSpec],
     parent_cache: SessionCache,
-    run_dir: str = "./runs",
     get_sub_cache: Callable[[], SessionCache] | None = None,
     make_sub_tools: Callable[[SessionCache], list[ToolSpec]] | None = None,
 ) -> ToolSpec:
@@ -111,7 +110,6 @@ def make_subagent_spec(
         harness_kwargs = {
             "system": system,
             "tools": sub_tools,
-            "run_dir": run_dir,
             "cache": sub_cache,
         }
 

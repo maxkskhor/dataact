@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -176,27 +176,3 @@ class AsyncProviderAdapter(ABC):
             cache_write_tokens=response.cache_write_tokens,
         )
         yield MessageStopEvent()
-
-    async def stream(
-        self,
-        system: str,
-        messages: list[Message],
-        tools: list[ToolSpec],
-        *,
-        on_chunk: Callable[[str], Awaitable[None]],
-    ) -> NormalizedResponse:
-        """Backward-compat text-only streaming; calls stream_events() internally."""
-        from data_harness.llm.streaming import (
-            ContentBlockDeltaEvent,
-            TextDelta,
-            accumulate_stream_events,
-        )
-
-        events = []
-        async for evt in self.stream_events(system, messages, tools):
-            events.append(evt)
-            if isinstance(evt, ContentBlockDeltaEvent) and isinstance(
-                evt.delta, TextDelta
-            ):
-                await on_chunk(evt.delta.text)
-        return accumulate_stream_events(events)

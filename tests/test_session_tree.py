@@ -13,6 +13,7 @@ import json
 
 import pytest
 
+from data_harness.core.hooks import BeforeTurn, Reminder
 from data_harness.core.session import (
     JsonlSessionStore,
     LeafEntry,
@@ -469,7 +470,6 @@ def test_a_run_records_every_message_it_sent(tmp_path):
         ),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.run("go")
 
@@ -494,7 +494,6 @@ def test_a_run_records_what_each_turn_cost(tmp_path):
         ),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.run("go")
 
@@ -510,7 +509,6 @@ def test_a_session_spans_several_runs(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("one"), FakeAdapter.text("two")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.run("first")
     harness.run("second")
@@ -531,7 +529,6 @@ def test_a_conversation_resumes_across_a_restart(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("4")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         session=Session(JsonlSessionStore.create(path, "sess-1")),
     )
     first.run("what is 2+2")
@@ -541,7 +538,6 @@ def test_a_conversation_resumes_across_a_restart(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("6")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         session=Session(JsonlSessionStore.open(path)),
     )
     assert texts(second.messages) == ["what is 2+2", "4"]
@@ -559,7 +555,6 @@ def test_a_resumed_session_can_fork_instead_of_continuing(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("first answer")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         session=Session(JsonlSessionStore.create(path, "sess-1")),
     )
     harness.run("the question")
@@ -575,7 +570,6 @@ def test_a_resumed_session_can_fork_instead_of_continuing(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("second answer")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         session=session,
     )
     retried.ask("")
@@ -593,7 +587,6 @@ async def test_a_streamed_run_records_the_same_way(tmp_path):
         adapter=FakeAsyncAdapter([FakeAsyncAdapter.text("streamed")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     async for _ in harness.run_stream("go"):
         pass
@@ -672,7 +665,6 @@ def test_an_orphaned_tool_call_is_dropped_from_the_context(tmp_path):
         adapter=FakeAdapter([FakeAdapter.tool_use("t1", "boom", {"value": "x"})]),
         system="sys",
         tools=[spec],
-        run_dir=str(tmp_path),
         session=Session(JsonlSessionStore.create(path, "sess")),
     )
     with pytest.raises(KeyboardInterrupt):
@@ -776,7 +768,6 @@ def test_a_second_run_starts_a_new_branch_not_a_false_continuation(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("one"), FakeAdapter.text("two")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.run("first")
     assert harness.session.build_context() == harness.messages
@@ -793,7 +784,6 @@ def test_the_log_and_the_working_copy_agree_on_every_entry_point(tmp_path):
         ),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.run("q1")
     assert harness.session.build_context() == harness.messages
@@ -813,10 +803,9 @@ def test_a_reminder_appended_to_a_recorded_message_is_still_logged(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("done")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         max_turns=2,
     )
-    harness.register_reminder(lambda turn, max_turns: "stay on task")
+    harness.on(BeforeTurn, lambda e: Reminder("stay on task"))
     harness.run("go")
 
     reminders = harness.session.custom_entries("reminder")

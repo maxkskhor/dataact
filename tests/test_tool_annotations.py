@@ -5,34 +5,9 @@ TDD: written before implementation.
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import pytest
 
-from data_harness.data.harness import Harness
-from data_harness.llm.providers.base import StopReason
-from data_harness.llm.testing import FakeAdapter
-from data_harness.llm.types import TextBlock, ToolSpec
-
-
-def make_text_response(text: str):
-    from data_harness.llm.providers.base import NormalizedResponse
-
-    return NormalizedResponse(
-        stop_reason=StopReason.END_TURN,
-        content=[TextBlock(text=text)],
-        input_tokens=5,
-        output_tokens=2,
-        cache_read_tokens=0,
-        cache_write_tokens=0,
-    )
-
-
-def read_jsonl(path: str) -> list[dict]:
-    lines = Path(path).read_text().strip().splitlines()
-    return [json.loads(line) for line in lines if line.strip()]
-
+from data_harness.llm.types import ToolSpec
 
 # ---------------------------------------------------------------------------
 # ToolAnnotations dataclass
@@ -149,61 +124,3 @@ class TestBuiltinToolAnnotations:
 
         spec = PythonInterpreter.make_tool_spec(SessionCache())
         assert spec.annotations.open_world is False
-
-
-# ---------------------------------------------------------------------------
-# Annotations appear in JSONL logs
-# ---------------------------------------------------------------------------
-
-
-class TestAnnotationsInLog:
-    def test_annotations_serialised_in_jsonl(self, tmp_path):
-        from data_harness.llm.types import ToolAnnotations
-
-        ann = ToolAnnotations(title="Echo tool", read_only=True)
-        echo_spec = ToolSpec(
-            name="echo",
-            description="echo",
-            input_schema={"type": "object", "properties": {"text": {"type": "string"}}},
-            handler=lambda text: text,
-            annotations=ann,
-        )
-        adapter = FakeAdapter([make_text_response("ok")])
-        harness = Harness(
-            adapter=adapter,
-            system="s",
-            tools=[echo_spec],
-            max_turns=5,
-            run_dir=str(tmp_path),
-        )
-        result = harness.run_result("go")
-        records = read_jsonl(result.run_file)
-        record = records[0]
-        assert "tool_annotations" in record
-        assert "echo" in record["tool_annotations"]
-        ann_data = record["tool_annotations"]["echo"]
-        assert ann_data["title"] == "Echo tool"
-        assert ann_data["read_only"] is True
-
-    def test_tool_without_annotations_omitted_from_map(self, tmp_path):
-        """Tools without annotations should not appear in the annotation map."""
-        no_ann_spec = ToolSpec(
-            name="plain",
-            description="plain",
-            input_schema={"type": "object"},
-            handler=lambda: "ok",
-        )
-        adapter = FakeAdapter([make_text_response("ok")])
-        harness = Harness(
-            adapter=adapter,
-            system="s",
-            tools=[no_ann_spec],
-            max_turns=5,
-            run_dir=str(tmp_path),
-        )
-        result = harness.run_result("go")
-        records = read_jsonl(result.run_file)
-        record = records[0]
-        # tool_annotations absent or empty — not populated for unannotated tools
-        annotations = record.get("tool_annotations", {})
-        assert "plain" not in annotations

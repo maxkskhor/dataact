@@ -32,7 +32,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", default=None, help="Model id (routes by name).")
     parser.add_argument("--no-sql", action="store_true", help="Disable the SQL tool.")
     parser.add_argument("--json", action="store_true", help="Emit JSON output.")
-    parser.add_argument("--run-dir", default=None, help="Directory for logs/charts.")
+    parser.add_argument(
+        "--run-dir", default=None, help="Directory for chart artefacts."
+    )
     return parser
 
 

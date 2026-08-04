@@ -12,30 +12,26 @@ enforces that. The names below are the stable public surface and are unaffected
 by where a class physically lives.
 """
 
-from data_harness._legacy_paths import install as _install_legacy_paths
-
-_install_legacy_paths()
-
-from data_harness.app.agent import (  # noqa: E402
+from data_harness.app.agent import (
     Agent,
     AgentSession,
     AsyncAgent,
     AsyncAgentSession,
 )
-from data_harness.app.quickstart import (  # noqa: E402
+from data_harness.app.quickstart import (
     Chat,
     SmartFrame,
     ask,
     resolve_adapter,
     resolve_async_adapter,
 )
-from data_harness.core.artifacts import ChartArtifact  # noqa: E402
-from data_harness.core.compaction import (  # noqa: E402
+from data_harness.core.artifacts import ChartArtifact
+from data_harness.core.compaction import (
     CompactionSettings,
     estimate_tokens,
     make_compactor,
 )
-from data_harness.core.exceptions import (  # noqa: E402
+from data_harness.core.exceptions import (
     ConfigurationError,
     DataHarnessError,
     ExecutionError,
@@ -44,7 +40,7 @@ from data_harness.core.exceptions import (  # noqa: E402
     SubagentRecursionError,
     ToolNotFoundError,
 )
-from data_harness.core.hooks import (  # noqa: E402
+from data_harness.core.hooks import (
     AfterToolCall,
     AfterTurn,
     BeforeToolCall,
@@ -56,24 +52,24 @@ from data_harness.core.hooks import (  # noqa: E402
     Replace,
     Stop,
 )
-from data_harness.core.result import CacheStorageInfo, RunResult, Usage  # noqa: E402
-from data_harness.core.session import (  # noqa: E402
+from data_harness.core.result import CacheStorageInfo, RunResult, Usage
+from data_harness.core.session import (
     JsonlSessionStore,
     MemorySessionStore,
     Session,
     SessionStoreError,
 )
-from data_harness.data.exec_cache import ExecutionCache  # noqa: E402
-from data_harness.data.harness import AsyncHarness  # noqa: E402
-from data_harness.data.io import load_dataframe  # noqa: E402
-from data_harness.data.mcp import MCPClient, MCPServer, mcp_tool_specs  # noqa: E402
-from data_harness.llm.providers.base import (  # noqa: E402
+from data_harness.data.exec_cache import ExecutionCache
+from data_harness.data.harness import AsyncHarness
+from data_harness.data.io import load_dataframe
+from data_harness.data.mcp import MCPClient, MCPServer, mcp_tool_specs
+from data_harness.llm.providers.base import (
     AsyncProviderAdapter,
     NormalizedResponse,
     ProviderAdapter,
     StopReason,
 )
-from data_harness.llm.streaming import (  # noqa: E402
+from data_harness.llm.streaming import (
     ContentBlockDeltaEvent,
     ContentBlockStartEvent,
     ContentBlockStopEvent,
@@ -86,7 +82,7 @@ from data_harness.llm.streaming import (  # noqa: E402
     TextDelta,
     ToolResultEvent,
 )
-from data_harness.llm.types import (  # noqa: E402
+from data_harness.llm.types import (
     ContentBlock,
     Message,
     TextBlock,

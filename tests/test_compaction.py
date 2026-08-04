@@ -284,7 +284,6 @@ def test_the_harness_compacts_between_turns(tmp_path):
         ),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         compactor=make_compactor(summarize, tiny),
     )
 
@@ -311,7 +310,6 @@ def test_the_working_copy_is_rebuilt_from_the_session_after_compacting(tmp_path)
         ),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         compactor=make_compactor(lambda m: "summary", tiny),
     )
 
@@ -327,7 +325,6 @@ def test_a_harness_without_a_compactor_never_compacts(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("done")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.run("go")
 
@@ -418,7 +415,6 @@ def test_a_compactor_that_fails_does_not_fail_the_run(tmp_path):
         ),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         compactor=broken,
     )
 
@@ -440,7 +436,6 @@ def test_a_failed_compaction_is_recorded(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("ok")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         compactor=broken,
     )
     harness.run("go")
@@ -566,7 +561,7 @@ def test_a_failed_run_raises_a_provider_error(tmp_path):
         def chat(self, system, messages, tools):
             raise RuntimeError("429 rate limited")
 
-    harness = Harness(adapter=Broken([]), system="sys", tools=[], run_dir=str(tmp_path))
+    harness = Harness(adapter=Broken([]), system="sys", tools=[])
 
     with pytest.raises(ProviderError) as excinfo:
         harness.run("go")
@@ -583,7 +578,6 @@ def test_max_turns_does_not_raise_a_provider_error(tmp_path):
         adapter=FakeAdapter([FakeAdapter.tool_use("t1", "missing", {})]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         max_turns=1,
     )
 

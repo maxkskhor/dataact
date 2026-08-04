@@ -52,7 +52,6 @@ def make_harness(
         system="test system",
         tools=[],
         max_turns=5,
-        run_dir=str(tmp_path),
         cache=cache,
     )
 
@@ -125,7 +124,6 @@ class TestRunResult:
             text="done",
             status="success",
             turns=1,
-            run_file="/tmp/run.jsonl",
             stop_reason=None,
             usage=Usage(),
             cache_snapshots={},
@@ -140,7 +138,6 @@ class TestRunResult:
         assert r.text == "done"
         assert r.status == "success"
         assert r.turns == 1
-        assert r.run_file == "/tmp/run.jsonl"
         assert r.stop_reason is None
         assert isinstance(r.usage, Usage)
         assert r.cache_snapshots == {}
@@ -211,7 +208,6 @@ class TestHarnessRunResult:
             system="s",
             tools=[echo_spec],
             max_turns=5,
-            run_dir=str(tmp_path),
         )
         result = harness.run_result("go")
         assert result.usage.input_tokens == 18
@@ -219,13 +215,6 @@ class TestHarnessRunResult:
         assert result.usage.cache_read_tokens == 2
         assert result.usage.cache_write_tokens == 1
         assert result.turns == 2
-
-    def test_run_file_populated(self, tmp_path):
-        result = make_harness([make_text_response("ok")], tmp_path=tmp_path).run_result(
-            "x"
-        )
-        assert result.run_file is not None
-        assert Path(result.run_file).exists()
 
     def test_cache_snapshots_compact_strings(self, tmp_path):
         cache = SessionCache()
@@ -292,7 +281,6 @@ class TestHarnessRunResult:
             system="s",
             tools=[echo_spec],
             max_turns=3,
-            run_dir=str(tmp_path),
         )
         result = harness.run_result("go")
         assert result.status == "max_turns_exceeded"
@@ -331,7 +319,6 @@ class TestHarnessRunResult:
             system="s",
             tools=[echo_spec],
             max_turns=3,
-            run_dir=str(tmp_path),
         )
         with pytest.raises(MaxTurnsExceeded):
             harness.run("go")
@@ -402,15 +389,6 @@ class TestAgentRunResult:
         agent = Agent(adapter=adapter, system="sys", run_dir=str(tmp_path))
         result = agent.run_result("x")
         assert result.status == "success"
-
-    def test_run_file_populated(self, tmp_path):
-        from data_harness.app.agent import Agent
-
-        adapter = FakeAdapter([FakeAdapter.text("ok")])
-        agent = Agent(adapter=adapter, system="sys", run_dir=str(tmp_path))
-        result = agent.run_result("x")
-        assert result.run_file is not None
-        assert Path(result.run_file).exists()
 
     def test_run_still_returns_string(self, tmp_path):
         from data_harness.app.agent import Agent

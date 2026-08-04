@@ -46,7 +46,6 @@ def test_advanced_wiring_scripted_flow_uses_real_dataset(tmp_path):
         adapter=adapter,
         system="You are a data analyst.",
         tools=build_base_tools(cache),
-        run_dir=str(tmp_path),
         cache=cache,
     )
 
