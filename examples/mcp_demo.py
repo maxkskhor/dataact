@@ -15,7 +15,7 @@ import argparse
 from dotenv import load_dotenv
 
 from data_harness import Agent
-from data_harness.quickstart import resolve_adapter
+from data_harness.app.quickstart import resolve_adapter
 
 
 def main() -> None:

@@ -30,7 +30,7 @@ if __name__ == "__main__":
         print("ANTHROPIC_API_KEY not set. Skipping live quick start.")
         sys.exit(0)
 
-    from data_harness.providers.anthropic import AnthropicAdapter
+    from data_harness.llm.providers.anthropic import AnthropicAdapter
 
     agent = build_agent(AnthropicAdapter(model="claude-sonnet-4-6"))
     result = agent.run("Compute the mean of [1, 2, 3, 4, 5] and print it.")

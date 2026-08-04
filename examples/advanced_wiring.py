@@ -13,14 +13,14 @@ from pathlib import Path
 
 import pandas as pd
 
-from data_harness.cache import SessionCache
-from data_harness.loop import Harness
-from data_harness.tools.connectors import ConnectorRegistry
-from data_harness.tools.interpreter import PythonInterpreter
-from data_harness.tools.planner import Planner
-from data_harness.tools.subagent import make_subagent_spec
-from data_harness.tools.variables import make_list_variables_spec
-from data_harness.types import ToolSpec
+from data_harness.data.cache import SessionCache
+from data_harness.data.harness import Harness
+from data_harness.data.tools.connectors import ConnectorRegistry
+from data_harness.data.tools.interpreter import PythonInterpreter
+from data_harness.data.tools.planner import Planner
+from data_harness.data.tools.subagent import make_subagent_spec
+from data_harness.data.tools.variables import make_list_variables_spec
+from data_harness.llm.types import ToolSpec
 
 DATA_PATH = Path(__file__).parent / "data" / "fred_unrate_2024.csv"
 
@@ -84,7 +84,7 @@ def main() -> None:
         print("ANTHROPIC_API_KEY not set. Skipping live demo.")
         sys.exit(0)
 
-    from data_harness.providers.anthropic import AnthropicAdapter
+    from data_harness.llm.providers.anthropic import AnthropicAdapter
 
     session_cache = SessionCache(sample_size=5)
 

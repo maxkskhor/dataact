@@ -40,6 +40,7 @@ import concurrent.futures
 import dataclasses
 import enum
 import functools
+import sys
 from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
 from contextlib import aclosing
 from dataclasses import dataclass
@@ -189,16 +190,27 @@ _UNREADABLE = _Unreadable.TOKEN
 def _ambient_event_loop() -> asyncio.AbstractEventLoop | None | _Unreadable:
     """The loop already installed on this thread, ``None``, or `_UNREADABLE`.
 
-    Must not install one as a side effect: on Python 3.10 and 3.11
-    ``asyncio.get_event_loop()`` *creates* one when none is set, which would
-    leave a never-run, never-closed loop and its selector fd behind on a
-    thread that only ever used the synchronous API. The stdlib policy keeps
-    the answer in a private slot and offers no public read-only accessor, so
-    that slot is what we read.
+    Must not install one as a side effect. Reading it needs two strategies,
+    because the safe way to ask changed:
 
-    Under a policy that does not expose it, we decline to guess: creating a
-    loop to find out whether one exists is the exact bug this guards against.
+    - 3.14 and later: `asyncio.get_event_loop` raises when no loop is set
+      instead of creating one, so asking is safe. The policy API it used to
+      need is deprecated there and goes away in 3.16.
+    - 3.10 to 3.13: `get_event_loop` *creates* a loop when none is set, which
+      would leave a never-run, never-closed loop and its selector fd behind on
+      a thread that only ever used the synchronous API. There is no public
+      read-only accessor, so the policy's private slot is what we read.
+
+    Under an exotic policy that does not expose that slot we decline to guess:
+    creating a loop to find out whether one exists is the exact bug this
+    guards against.
     """
+    if sys.version_info >= (3, 14):
+        try:
+            return asyncio.get_event_loop()
+        except RuntimeError:
+            return None
+
     policy = asyncio.get_event_loop_policy()
     local = getattr(policy, "_local", None)
     if local is None:
