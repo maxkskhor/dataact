@@ -6,7 +6,7 @@ import json
 
 import pandas as pd
 
-from data_harness import cli
+from data_harness.app import cli
 from data_harness.core.result import RunResult, Usage
 
 
@@ -15,7 +15,6 @@ def _fake_result(text="the answer is 6", value=6, charts=None) -> RunResult:
         text=text,
         status="success",
         turns=2,
-        run_file=None,
         stop_reason=None,
         usage=Usage(input_tokens=10, output_tokens=5),
         value=value,

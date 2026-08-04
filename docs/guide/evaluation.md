@@ -132,8 +132,7 @@ tests with `FakeAdapter`. Use recent models for a meaningful comparison.
 `EvalReport.to_dict()` / `to_json()` produce a machine-readable summary
 (accuracy, per-model & per-category, cost, every case result). The example
 runners write a timestamped JSON into the tracked `evals/results/` directory, so
-runs are diffable in git (per-run JSONL logs and charts stay in gitignored
-`runs/`):
+runs are diffable in git (chart artefacts stay in gitignored `runs/`):
 
 ```bash
 uv run python examples/eval_demo.py --suite hard   # → evals/results/hard_<ts>.{json,md}
@@ -180,6 +179,6 @@ models. Model differentiation lives in messy/real-world data.
 
 - `answer()` → `.value` gives a **checkable** result, so grading is programmatic.
 - **OpenRouter** turns the model matrix into a one-key, cost-aware leaderboard.
-- **JSONL run logs** make every graded case reconstructable.
+- The **session tree** makes every graded case reconstructable.
 - The stateful, multi-table cases exercise the **agent loop + SessionCache** —
   turning "it felt better" into a number on the work the harness is actually for.

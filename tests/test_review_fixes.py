@@ -5,9 +5,6 @@ Written before the fixes; all should fail initially.
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import pytest
 
 from data_harness.data.harness import Harness
@@ -17,7 +14,7 @@ from data_harness.llm.providers.base import (
     StopReason,
 )
 from data_harness.llm.testing import FakeAdapter
-from data_harness.llm.types import TextBlock, ToolAnnotations, ToolSpec
+from data_harness.llm.types import TextBlock
 
 
 def make_text_response(text: str) -> NormalizedResponse:
@@ -77,9 +74,9 @@ class TestAgentSessionAskRaisesOnError:
 # ---------------------------------------------------------------------------
 
 
-class TestErrorPathWritesJSONL:
-    def test_jsonl_has_record_on_adapter_error(self, tmp_path):
-        """A JSONL record must be written even when status='error'."""
+class TestErrorPathReportsFailure:
+    def test_result_carries_the_provider_error(self, tmp_path):
+        """A failed provider call must be reported on the `RunResult`, not lost."""
 
         class BoomAdapter(ProviderAdapter):
             def chat(self, system, messages, tools):
@@ -93,15 +90,10 @@ class TestErrorPathWritesJSONL:
             system="s",
             tools=[],
             max_turns=5,
-            run_dir=str(tmp_path),
         )
         result = harness.run_result("go")
         assert result.status == "error"
-        assert result.run_file is not None
-        lines = Path(result.run_file).read_text().strip().splitlines()
-        assert len(lines) >= 1
-        record = json.loads(lines[0])
-        assert "error" in record or record.get("status") == "error"
+        assert "log me" in (result.error or "")
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +117,6 @@ class TestMaxTokensTerminates:
             system="s",
             tools=[],
             max_turns=10,
-            run_dir=str(tmp_path),
         )
         result = harness.run_result("go")
         # Must not spin through remaining turns
@@ -147,7 +138,6 @@ class TestMaxTokensTerminates:
             system="s",
             tools=[],
             max_turns=10,
-            run_dir=str(tmp_path),
         )
         result = harness.run_result("go")
         assert result.turns == 1
@@ -207,66 +197,6 @@ class TestAgentSessionDeepCacheIsolation:
 # ---------------------------------------------------------------------------
 
 
-class TestAllNoneAnnotationsNotInJSONL:
-    def test_all_none_tool_annotations_not_written_to_jsonl(self, tmp_path):
-        """All-None ToolAnnotations() must not appear in tool_annotations."""
-        empty_ann_spec = ToolSpec(
-            name="noop",
-            description="does nothing",
-            input_schema={"type": "object"},
-            handler=lambda: "ok",
-            annotations=ToolAnnotations(),  # all fields None
-        )
-        harness = Harness(
-            adapter=FakeAdapter([make_text_response("done")]),
-            system="s",
-            tools=[empty_ann_spec],
-            max_turns=5,
-            run_dir=str(tmp_path),
-        )
-        result = harness.run_result("go")
-        assert result.run_file is not None
-        lines = Path(result.run_file).read_text().strip().splitlines()
-        record = json.loads(lines[0])
-        # Either tool_annotations key absent, or "noop" not in it
-        ann = record.get("tool_annotations", {})
-        assert "noop" not in ann
-
-    def test_all_none_annotations_excluded_but_real_annotations_included(
-        self, tmp_path
-    ):
-        """Only non-empty annotation dicts should appear in the JSONL record."""
-        empty_ann_spec = ToolSpec(
-            name="noop",
-            description="does nothing",
-            input_schema={"type": "object"},
-            handler=lambda: "ok",
-            annotations=ToolAnnotations(),
-        )
-        real_ann_spec = ToolSpec(
-            name="reader",
-            description="reads",
-            input_schema={"type": "object"},
-            handler=lambda: "read",
-            annotations=ToolAnnotations(read_only=True),
-            visible=True,
-        )
-        harness = Harness(
-            adapter=FakeAdapter([make_text_response("done")]),
-            system="s",
-            tools=[empty_ann_spec, real_ann_spec],
-            max_turns=5,
-            run_dir=str(tmp_path),
-        )
-        result = harness.run_result("go")
-        lines = Path(result.run_file).read_text().strip().splitlines()
-        record = json.loads(lines[0])
-        ann = record.get("tool_annotations", {})
-        assert "noop" not in ann
-        assert "reader" in ann
-        assert ann["reader"]["read_only"] is True
-
-
 # ---------------------------------------------------------------------------
 # Bug: Harness(max_turns=0) silently produces broken run
 # ---------------------------------------------------------------------------
@@ -300,7 +230,6 @@ class TestMaxTurnsValidation:
             system="s",
             tools=[],
             max_turns=1,
-            run_dir=str(tmp_path),
         )
         result = harness.run_result("go")
         assert result.status == "success"

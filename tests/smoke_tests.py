@@ -3,7 +3,7 @@
 These tests call a real model via OpenRouter (one key, many providers) and are
 excluded from normal unit-test runs. They cover the quick SDK path, explicit
 harness wiring, real checked-in data, connector/cache behaviour, subagents, and
-JSONL logs.
+the per-turn accounting recorded on the session tree.
 
 Required:
     OPENROUTER_API_KEY
@@ -20,7 +20,6 @@ DATA_HARNESS_SMOKE_MODEL (e.g. deepseek/deepseek-chat) to compare providers.
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 
@@ -28,14 +27,21 @@ import pandas as pd
 import pytest
 
 from data_harness import Agent
+from data_harness.core.hooks import BeforeTurn, Reminder
 from data_harness.core.result import CacheStorageInfo, RunResult
+from data_harness.core.session.entries import TurnEntry
 from data_harness.data.cache import SessionCache
 from data_harness.data.harness import Harness
 from data_harness.data.tools.planner import Planner
 from data_harness.data.tools.subagent import make_subagent_spec
 from data_harness.llm.providers.base import StopReason
 from data_harness.llm.providers.openai import OpenRouterAdapter
-from data_harness.llm.types import ToolAnnotations, ToolSpec
+from data_harness.llm.types import (
+    ToolAnnotations,
+    ToolResultBlock,
+    ToolSpec,
+    ToolUseBlock,
+)
 from examples.advanced_wiring import build_base_tools, load_unemployment_rate
 
 pytestmark = pytest.mark.live
@@ -67,10 +73,28 @@ def _smoke_adapter(max_tokens: int = 512) -> OpenRouterAdapter:
     return OpenRouterAdapter(model=_smoke_model_id(), max_tokens=max_tokens)
 
 
-def _latest_jsonl(run_dir: Path) -> list[dict]:
-    files = sorted(run_dir.glob("*.jsonl"), key=lambda path: path.stat().st_mtime)
-    assert files, f"No JSONL run logs found in {run_dir}"
-    return [json.loads(line) for line in files[-1].read_text().splitlines() if line]
+def _turn_entries(harness: Harness) -> list[TurnEntry]:
+    entries = [e for e in harness.session.store.entries() if isinstance(e, TurnEntry)]
+    assert entries, "No TurnEntry records on the session"
+    return entries
+
+
+def _tool_use_blocks(harness: Harness) -> list[ToolUseBlock]:
+    return [
+        block
+        for message in harness.messages
+        for block in message.content
+        if isinstance(block, ToolUseBlock)
+    ]
+
+
+def _tool_result_blocks(harness: Harness) -> list[ToolResultBlock]:
+    return [
+        block
+        for message in harness.messages
+        for block in message.content
+        if isinstance(block, ToolResultBlock)
+    ]
 
 
 def _all_text_from_messages(harness: Harness) -> str:
@@ -90,16 +114,15 @@ def test_openai_basic_harness_completion(tmp_path):
         system="Answer concisely.",
         tools=[],
         max_turns=2,
-        run_dir=str(tmp_path),
     )
 
     result = harness.run("What is 7 times 8? Reply with only the number.")
 
     assert "56" in result
-    lines = _latest_jsonl(tmp_path)
-    assert len(lines) == 1
-    assert lines[0]["stop_reason"] == "end_turn"
-    assert lines[0]["metrics"]["input_tokens"] > 0
+    turns = _turn_entries(harness)
+    assert len(turns) == 1
+    assert turns[0].stop_reason == "end_turn"
+    assert turns[0].input_tokens > 0
 
 
 def test_openai_agent_can_ask_clarifying_question(tmp_path):
@@ -119,7 +142,7 @@ def test_openai_agent_can_ask_clarifying_question(tmp_path):
 
     assert "?" in result
     assert agent.last_harness is not None
-    assert all(not line["tool_results"] for line in _latest_jsonl(tmp_path))
+    assert not _tool_use_blocks(agent.last_harness)
 
 
 def test_openai_agent_simple_sdk_uses_python_and_saves_handle(tmp_path):
@@ -145,9 +168,8 @@ def test_openai_agent_simple_sdk_uses_python_and_saves_handle(tmp_path):
 
     assert "15" in result
     assert agent.cache.get("total_sum") == 15
-    assert agent.last_run_file is not None
-    lines = _latest_jsonl(tmp_path)
-    assert any(line["tool_results"] for line in lines)
+    assert agent.last_harness is not None
+    assert _tool_use_blocks(agent.last_harness)
 
 
 def test_openai_agent_connector_real_fred_data(tmp_path):
@@ -211,7 +233,6 @@ def test_openai_explicit_harness_real_data_planner_and_subagent(tmp_path):
         adapter_factory=lambda: _smoke_adapter(max_tokens=512),
         parent_tools=base_tools,
         parent_cache=cache,
-        run_dir=str(tmp_path),
         make_sub_tools=build_base_tools,
     )
     tools.append(subagent_spec)
@@ -225,10 +246,14 @@ def test_openai_explicit_harness_real_data_planner_and_subagent(tmp_path):
         ),
         tools=tools,
         max_turns=12,
-        run_dir=str(tmp_path),
         cache=cache,
     )
-    harness.register_reminder(planner.reminder_hook)
+
+    def _planner_reminder(event: BeforeTurn) -> Reminder | None:
+        text = planner.reminder_hook(event.turn, event.max_turns)
+        return Reminder(text) if text else None
+
+    harness.on(BeforeTurn, _planner_reminder)
 
     result = harness.run(
         "Add a plan item for loading UNRATE and another for analysing it. "
@@ -249,19 +274,10 @@ def test_openai_explicit_harness_real_data_planner_and_subagent(tmp_path):
     assert str(highest["date"].date()) == "2024-07-01"
     assert float(highest["value"]) == 4.3
 
-    lines = _latest_jsonl(tmp_path)
-    tool_names = [
-        block["name"]
-        for line in lines
-        for block in line["response_content"]
-        if block.get("type") == "tool_use"
-    ]
+    tool_names = [block.tool_name for block in _tool_use_blocks(harness)]
     assert "planner__add" in tool_names
     assert "subagent" in tool_names
-    assert len({line["system_hash"] for line in lines}) == 1
-    assert "system" in lines[0]
-    assert all("system" not in line for line in lines[1:])
-    assert any("load_unemployment_rate" in line["cache_storage"] for line in lines)
+    assert "load_unemployment_rate" in cache.storage_metadata()
 
 
 def test_openai_disk_backed_cache_keeps_raw_data_out_of_messages(tmp_path):
@@ -276,7 +292,6 @@ def test_openai_disk_backed_cache_keeps_raw_data_out_of_messages(tmp_path):
         ),
         tools=tools,
         max_turns=8,
-        run_dir=str(tmp_path / "runs"),
         cache=cache,
     )
 
@@ -295,7 +310,7 @@ def test_openai_disk_backed_cache_keeps_raw_data_out_of_messages(tmp_path):
     assert len(message_text) < 30_000
 
 
-def test_openai_tool_error_is_reported_and_logged(tmp_path):
+def test_openai_tool_error_is_reported_and_recorded(tmp_path):
     _require_key()
 
     def failing_tool() -> str:
@@ -312,16 +327,14 @@ def test_openai_tool_error_is_reported_and_logged(tmp_path):
         system="Call bad_tool exactly once, then explain that it failed.",
         tools=[bad_tool],
         max_turns=4,
-        run_dir=str(tmp_path),
     )
 
     result = harness.run("Call bad_tool once and report the error.")
 
     assert "fail" in result.lower() or "error" in result.lower()
-    tool_results = [
-        block for line in _latest_jsonl(tmp_path) for block in line["tool_results"]
-    ]
-    assert any(block["is_error"] for block in tool_results)
+    tool_results = _tool_result_blocks(harness)
+    assert any(block.is_error for block in tool_results)
+    assert any(t.tool_error_count > 0 for t in _turn_entries(harness))
 
 
 # ---------------------------------------------------------------------------
@@ -346,8 +359,6 @@ def test_run_result_typed_return(tmp_path):
     assert result.usage.output_tokens > 0
     assert result.stop_reason == StopReason.END_TURN
     assert result.run_id is not None
-    assert result.run_file is not None
-    assert Path(result.run_file).exists()
     assert "42" in result.text
 
 
@@ -385,11 +396,11 @@ def test_agent_session_multiturn(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# PLAN_v5: JSONL enriched fields (visible_tools, tool_error_count, tool_annotations)
+# PLAN_v5: per-turn accounting fields (visible_tools, tool_error_count)
 # ---------------------------------------------------------------------------
 
 
-def test_jsonl_new_fields(tmp_path):
+def test_turn_entry_records_visible_tools_and_error_count(tmp_path):
     _require_key()
 
     get_pi = ToolSpec(
@@ -404,22 +415,13 @@ def test_jsonl_new_fields(tmp_path):
         system="Use get_pi once when asked about pi, then answer.",
         tools=[get_pi],
         max_turns=4,
-        run_dir=str(tmp_path),
     )
 
     harness.run("What is pi? Use the get_pi tool, then tell me the value.")
 
-    lines = _latest_jsonl(tmp_path)
-    assert lines, "No JSONL records written"
-
-    for line in lines:
-        assert "visible_tools" in line, "visible_tools missing from JSONL record"
-        assert "tool_error_count" in line, "tool_error_count missing from JSONL record"
-
-    ann_line = next((ln for ln in lines if ln.get("tool_annotations")), None)
-    assert ann_line is not None, "No JSONL record contains tool_annotations"
-    assert "get_pi" in ann_line["tool_annotations"]
-    assert ann_line["tool_annotations"]["get_pi"]["read_only"] is True
+    turns = _turn_entries(harness)
+    assert any("get_pi" in t.visible_tools for t in turns)
+    assert all(t.tool_error_count == 0 for t in turns)
 
 
 # ---------------------------------------------------------------------------

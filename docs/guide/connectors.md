@@ -11,7 +11,7 @@ decisions at each turn.
 
 ```python
 from data_harness import Agent
-from data_harness.providers.anthropic import AnthropicAdapter
+from data_harness.llm.providers.anthropic import AnthropicAdapter
 
 agent = Agent(
     adapter=AnthropicAdapter(model="claude-sonnet-4-6"),
@@ -132,8 +132,8 @@ server into a `Harness` directly.
 `examples/advanced_wiring.py`:
 
 ```python
-from data_harness.tools.connectors import ConnectorRegistry
-from data_harness.types import ToolSpec
+from data_harness.data.tools.connectors import ConnectorRegistry
+from data_harness.llm.types import ToolSpec
 
 registry = ConnectorRegistry()
 registry.register(

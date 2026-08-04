@@ -3,7 +3,7 @@
 `data_harness.core.loop` is domain-free — it takes a `RunEnvironment` and has
 no idea what a DataFrame is. Almost nobody wants that directly. These two
 classes are the same loop with the data domain plugged in, and they are what
-`Agent` builds and what `data_harness.loop` resolves to.
+`Agent` builds.
 
 The only difference from the core classes is the constructor: ``cache=`` in
 place of ``environment=``, defaulting to a fresh `SessionCache`.
@@ -50,7 +50,6 @@ class Harness(_CoreHarness):
         system: System prompt. Kept byte-identical across all turns.
         tools: Full tool list.
         max_turns: Hard cap on provider turns.
-        run_dir: Directory where JSONL logs are written.
         cache: Shared `SessionCache`. A fresh one is created if ``None``.
         session: Durable record of the run. Pass one opened from storage
             to resume a conversation across processes.
@@ -66,7 +65,6 @@ class Harness(_CoreHarness):
         system: str,
         tools: list[ToolSpec],
         max_turns: int = 25,
-        run_dir: str = "./runs",
         cache: SessionCache | None = None,
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
@@ -79,7 +77,6 @@ class Harness(_CoreHarness):
             system=system,
             tools=tools,
             max_turns=max_turns,
-            run_dir=run_dir,
             environment=_environment_for(cache),
             on_code=on_code,
             code_only=code_only,
@@ -106,7 +103,6 @@ class AsyncHarness(_CoreAsyncHarness):
         system: str,
         tools: list[ToolSpec],
         max_turns: int = 25,
-        run_dir: str = "./runs",
         cache: SessionCache | None = None,
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
@@ -119,7 +115,6 @@ class AsyncHarness(_CoreAsyncHarness):
             system=system,
             tools=tools,
             max_turns=max_turns,
-            run_dir=run_dir,
             environment=_environment_for(cache),
             on_code=on_code,
             code_only=code_only,

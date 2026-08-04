@@ -16,7 +16,7 @@ Every run is logged — and eval-backed.
 
 ---
 
-Most data-agent tooling makes you pick between giving a model a **shell** (unsafe, irreproducible) and **single-shot code-gen** (no state, no multi-step). `data-harness` is the controlled middle path: the model works through a constrained Python interpreter, large objects live in a `SessionCache` and are exposed as compact handle snapshots — so a 100k-row table never hits the context window — every turn is logged to JSONL, and a built-in **evaluation harness** measures quality and cost across providers.
+Most data-agent tooling makes you pick between giving a model a **shell** (unsafe, irreproducible) and **single-shot code-gen** (no state, no multi-step). `data-harness` is the controlled middle path: the model works through a constrained Python interpreter, large objects live in a `SessionCache` and are exposed as compact handle snapshots — so a 100k-row table never hits the context window — every run is recorded as an append-only session tree, and a built-in **evaluation harness** measures quality and cost across providers.
 
 ### Principles
 
@@ -71,7 +71,7 @@ ask(df, "summarise the data",   model="google/gemini-2.5-flash-lite")
 ask(df, "which region grew fastest?", model="qwen/qwen3.5-flash-02-23")
 ```
 
-Without OpenRouter, `ask()` falls back to `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `DEEPSEEK_API_KEY`. In a notebook, the returned `RunResult` renders prose, the value, and charts inline (there's also a `%%ask` magic via `%load_ext data_harness.notebook`).
+Without OpenRouter, `ask()` falls back to `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `DEEPSEEK_API_KEY`. In a notebook, the returned `RunResult` renders prose, the value, and charts inline (there's also a `%%ask` magic via `%load_ext data_harness.app.notebook`).
 
 ---
 
@@ -175,7 +175,7 @@ What the runs show: the structured/large/stateful suites **saturate at ~100% acr
 
 ```python
 from data_harness import Agent
-from data_harness.providers.anthropic import AnthropicAdapter
+from data_harness.llm.providers.anthropic import AnthropicAdapter
 
 agent = Agent(adapter=AnthropicAdapter(model="claude-sonnet-4-6"), system="You are a data analyst.")
 print(agent.run("Compute the mean of [1, 2, 3, 4, 5]."))
@@ -183,7 +183,7 @@ print(agent.run("Compute the mean of [1, 2, 3, 4, 5]."))
 
 | Component | Role |
 |---|---|
-| `Harness` | The ReAct loop — messages, tool dispatch, reminders, JSONL logging |
+| `Harness` | The ReAct loop — messages, tool dispatch, reminders, session recording |
 | `SessionCache` | Handle-based store; keeps large objects out of message history |
 | `ProviderAdapter` | Translates provider SDK responses into harness types |
 | `python_interpreter` | The model's only execution surface |

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import copy
-import json
-from pathlib import Path
 
 import pytest
 
@@ -84,9 +82,7 @@ def make_tool_response(
 class TestLoopBasic:
     def test_exits_on_end_turn(self, tmp_path):
         adapter = FakeAdapter([make_text_response("Done!")])
-        harness = Harness(
-            adapter=adapter, system="sys", tools=[], run_dir=str(tmp_path)
-        )
+        harness = Harness(adapter=adapter, system="sys", tools=[])
         result = harness.run("hello")
         assert result == "Done!"
 
@@ -105,7 +101,6 @@ class TestLoopBasic:
             system="sys",
             tools=[noop_tool],
             max_turns=3,
-            run_dir=str(tmp_path),
         )
         with pytest.raises(MaxTurnsExceeded) as exc_info:
             harness.run("go")
@@ -130,9 +125,7 @@ class TestLoopBasic:
                 make_text_response("done"),
             ]
         )
-        harness = Harness(
-            adapter=adapter, system="sys", tools=[tool], run_dir=str(tmp_path)
-        )
+        harness = Harness(adapter=adapter, system="sys", tools=[tool])
         harness.run("run tool")
         assert called_with == [{"x": 42}]
 
@@ -149,9 +142,7 @@ class TestLoopBasic:
                 make_text_response("done"),
             ]
         )
-        harness = Harness(
-            adapter=adapter, system="sys", tools=[tool], run_dir=str(tmp_path)
-        )
+        harness = Harness(adapter=adapter, system="sys", tools=[tool])
         harness.run("go")
         # Turn 2 adapter call should have a user message with ToolResultBlock
         turn2_messages = adapter._calls[1]["messages"]
@@ -173,13 +164,13 @@ class TestLoopBasic:
                 make_text_response("all done"),
             ]
         )
-        harness = Harness(
-            adapter=adapter, system="sys", tools=[tool], run_dir=str(tmp_path)
-        )
+        harness = Harness(adapter=adapter, system="sys", tools=[tool])
         result = harness.run("begin")
         assert result == "all done"
 
-    def test_jsonl_has_one_line_per_turn(self, tmp_path):
+    def test_session_records_one_turn_entry_per_turn(self, tmp_path):
+        from data_harness.core.session.entries import TurnEntry
+
         tool = ToolSpec(
             name="step",
             description="step",
@@ -192,15 +183,10 @@ class TestLoopBasic:
                 make_text_response("done"),
             ]
         )
-        harness = Harness(
-            adapter=adapter, system="sys", tools=[tool], run_dir=str(tmp_path)
-        )
+        harness = Harness(adapter=adapter, system="sys", tools=[tool])
         harness.run("begin")
-        jsonl_files = list(Path(tmp_path).glob("*.jsonl"))
-        assert len(jsonl_files) == 1
-        raw = jsonl_files[0].read_text().strip().splitlines()
-        lines = [json.loads(line) for line in raw]
-        assert len(lines) == 2
+        turns = [e for e in harness.session.store.entries() if isinstance(e, TurnEntry)]
+        assert len(turns) == 2
 
     def test_tool_use_ordering(self, tmp_path):
         tool = ToolSpec(
@@ -215,9 +201,7 @@ class TestLoopBasic:
                 make_text_response("done"),
             ]
         )
-        harness = Harness(
-            adapter=adapter, system="sys", tools=[tool], run_dir=str(tmp_path)
-        )
+        harness = Harness(adapter=adapter, system="sys", tools=[tool])
         harness.run("go")
         # In the 2nd adapter call, messages should have tool_use followed by tool_result
         msgs = adapter._calls[1]["messages"]
@@ -245,9 +229,7 @@ class TestLoopBasic:
                 make_text_response("done"),
             ]
         )
-        harness = Harness(
-            adapter=adapter, system="sys", tools=[], run_dir=str(tmp_path)
-        )
+        harness = Harness(adapter=adapter, system="sys", tools=[])
         harness.run("go")
         # Should not raise; turn 2 should have an error result
         msgs = adapter._calls[1]["messages"]
@@ -277,9 +259,7 @@ class TestLoopBasic:
                 make_text_response("done"),
             ]
         )
-        harness = Harness(
-            adapter=adapter, system="sys", tools=[tool], run_dir=str(tmp_path)
-        )
+        harness = Harness(adapter=adapter, system="sys", tools=[tool])
         harness.run("go")
         msgs = adapter._calls[1]["messages"]
         last_user = [m for m in msgs if m.role == "user"][-1]
@@ -303,9 +283,7 @@ class TestLoopBasic:
             ]
         )
         system = "This is a stable system prompt."
-        harness = Harness(
-            adapter=adapter, system=system, tools=[tool], run_dir=str(tmp_path)
-        )
+        harness = Harness(adapter=adapter, system=system, tools=[tool])
         harness.run("go")
         for call in adapter._calls:
             assert call["system"] == system
@@ -323,9 +301,7 @@ class TestLoopBasic:
                 make_text_response("done"),
             ]
         )
-        harness = Harness(
-            adapter=adapter, system="sys", tools=[tool], run_dir=str(tmp_path)
-        )
+        harness = Harness(adapter=adapter, system="sys", tools=[tool])
         harness.run("go")
         # The harness internal messages should not be mutated by adapter calls
         # We verify by checking stored messages are structurally sound
@@ -364,7 +340,6 @@ class TestLoopBasic:
             adapter=adapter,
             system="sys",
             tools=[flipper_tool, hidden_tool],
-            run_dir=str(tmp_path),
         )
         harness.run("go")
         # After flipper runs, the 2nd call should see "hidden" in tools
@@ -386,7 +361,6 @@ class TestLoopBasic:
             adapter=adapter,
             system="sys",
             tools=[],
-            run_dir=str(tmp_path),
             cache=cache,
         )
         harness.run("hello")

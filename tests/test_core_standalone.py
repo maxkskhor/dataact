@@ -1,22 +1,15 @@
 """The boundary is worth something, not just declared.
 
-Two claims are made by splitting the package into layers, and each is only
-credible if it is exercised:
-
-1. `data_harness.core` runs an agent with no data domain at all.
-2. Every pre-layering import path still resolves, to the same object.
-
-A layering that no one can use without the layer above it is decoration, and a
-rename that breaks every downstream import is not a refactor.
+Splitting the package into layers only means something if `data_harness.core`
+can run an agent with no data domain at all — no cache, no pandas, no
+interpreter. A layering that no one can use without the layer above it is
+decoration.
 """
 
 from __future__ import annotations
 
-import importlib
-
 import pytest
 
-from data_harness._legacy_paths import LEGACY_PATHS
 from data_harness.core.environment import NullEnvironment, RunEnvironment, RunState
 from data_harness.core.loop import AsyncHarness, Harness
 from data_harness.llm.testing import FakeAdapter, FakeAsyncAdapter
@@ -50,7 +43,6 @@ def test_core_harness_runs_a_tool_loop_with_no_domain(tmp_path):
         ),
         system="sys",
         tools=[upper_spec()],
-        run_dir=str(tmp_path),
     )
 
     result = harness.run_result("go")
@@ -66,7 +58,6 @@ async def test_core_async_harness_runs_with_no_domain(tmp_path):
         adapter=FakeAsyncAdapter([FakeAsyncAdapter.text("fine")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
 
     assert await harness.run("go") == "fine"
@@ -78,7 +69,6 @@ def test_the_null_environment_contributes_no_run_state(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("done")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     ).run_result("go")
 
     assert result.cache_snapshots == {}
@@ -115,7 +105,6 @@ def test_a_custom_environment_shapes_the_transcript_and_the_result(tmp_path):
         ),
         system="sys",
         tools=[upper_spec()],
-        run_dir=str(tmp_path),
         environment=ShoutingEnvironment(),
     )
 
@@ -134,38 +123,3 @@ def test_the_cache_environment_also_satisfies_it():
     from data_harness.data.environment import CacheEnvironment
 
     assert isinstance(CacheEnvironment(), RunEnvironment)
-
-
-# ── the compatibility promise ───────────────────────────────────────────────
-
-
-@pytest.mark.parametrize("legacy", sorted(LEGACY_PATHS))
-def test_legacy_import_path_still_resolves(legacy: str):
-    assert importlib.import_module(legacy) is not None
-
-
-@pytest.mark.parametrize("legacy,current", sorted(LEGACY_PATHS.items()))
-def test_legacy_path_is_the_same_module_not_a_copy(legacy: str, current: str):
-    """Identity matters, not just importability.
-
-    Re-exporting names into a shim would give a second module object, and a
-    class reached through the old path would fail an `isinstance` check
-    against the same class reached through the new one.
-    """
-    assert importlib.import_module(legacy) is importlib.import_module(current)
-
-
-def test_a_class_is_the_same_class_through_either_path():
-    from data_harness.loop import Harness as ViaLegacy
-
-    from data_harness.core.loop import Harness as ViaCore
-    from data_harness.data.harness import Harness as ViaData
-
-    assert ViaLegacy is ViaData
-    assert issubclass(ViaData, ViaCore)
-
-
-def test_an_unknown_data_harness_module_still_fails():
-    """The finder must not swallow genuine typos."""
-    with pytest.raises(ModuleNotFoundError):
-        importlib.import_module("data_harness.no_such_module")

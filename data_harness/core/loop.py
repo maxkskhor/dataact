@@ -14,11 +14,6 @@ The driver answers `CallProvider` and `CallTool` with `Ok(value)` or
 wrapper matters: without it a handler that legitimately returned a `Failed`
 would be mistaken for one that raised.
 
-Turn logging is the one effect not modelled as an effect: `_plan` writes JSONL
-to disk directly. That is a deliberate leftover, and it is why the "no I/O"
-claim above is scoped to the network. Phase 3 replaces the log with a session
-store and the write moves behind an interface.
-
 Two drivers perform the effects:
 
 - `Harness` runs everything inline on the calling thread. No event loop is
@@ -62,7 +57,6 @@ from data_harness.core.hooks import (
     Replace,
     Stop,
 )
-from data_harness.core.logger import log_error_turn, log_turn, setup_logger
 from data_harness.core.observe import time_block
 from data_harness.core.result import RunResult, Usage, unwrap_text
 from data_harness.core.session import Session
@@ -297,7 +291,6 @@ class _HarnessBase:
         system: str,
         tools: list[ToolSpec],
         max_turns: int = 25,
-        run_dir: str = "./runs",
         environment: RunEnvironment | None = None,
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
@@ -310,7 +303,6 @@ class _HarnessBase:
         self._system = system
         self._tools = list(tools)
         self._max_turns = max_turns
-        self._run_dir = run_dir
         self._environment = (
             environment if environment is not None else NullEnvironment()
         )
@@ -324,8 +316,6 @@ class _HarnessBase:
         # working copy, so `ask` continues the conversation rather than
         # starting a second one that shares a log with the first.
         self._messages: list[Message] = self._session.build_context()
-        self._reminders: list[Callable[[int, int], str | None]] = []
-        self._run_file: str | None = None
         # Kept for introspection only. The gate hook closes over these at
         # construction, so assigning them afterwards changes nothing; build a
         # new harness, or register your own BeforeToolCall hook.
@@ -334,18 +324,6 @@ class _HarnessBase:
         self._last_result: RunResult | None = None
         self._turns_completed = 0
         self._usage_so_far = Usage()
-
-    def register_reminder(self, hook: Callable[[int, int], str | None]) -> None:
-        """Register a suffix reminder called before each provider turn.
-
-        Kept for the callers that predate hooks. It is a `BeforeTurn` hook
-        returning a `Reminder`, which is the general form and can also refuse
-        a tool call, rewrite a result, or stop the run.
-
-        Args:
-            hook: Callable with signature ``(turn: int, max_turns: int) -> str | None``.
-        """
-        self._reminders.append(hook)
 
     def on(self, event_type: type[Event], hook: Callable[[Any], Any]) -> None:
         """Register ``hook`` for ``event_type``. See `data_harness.core.hooks`."""
@@ -360,11 +338,6 @@ class _HarnessBase:
     #
     # `tools`, `messages`, and `reminders` return the live lists: mutating them
     # mutates the harness, which is how tools get added to a live session.
-
-    @property
-    def run_file(self) -> str | None:
-        """Path to the JSONL log for this run, or ``None`` before the first run."""
-        return self._run_file
 
     @property
     def last_result(self) -> RunResult | None:
@@ -416,11 +389,6 @@ class _HarnessBase:
         """The conversation history the model sees. Live and mutable."""
         return self._messages
 
-    @property
-    def reminders(self) -> list[Callable[[int, int], str | None]]:
-        """Registered suffix reminder hooks, in registration order."""
-        return self._reminders
-
     # ── run setup ───────────────────────────────────────────────────────────
 
     def _record(self, message: Message) -> Message:
@@ -437,7 +405,6 @@ class _HarnessBase:
         return message
 
     def _begin_run(self, user_message: str) -> None:
-        self._run_file = setup_logger(self._run_dir)
         self._stop_reason = None
         self._messages = []
         # A fresh run is a fresh conversation, so the session starts a new root
@@ -450,8 +417,6 @@ class _HarnessBase:
 
     def _begin_ask(self, user_message: str) -> None:
         self._stop_reason = None
-        if self._run_file is None:
-            self._run_file = setup_logger(self._run_dir)
         self._record(Message(role="user", content=[TextBlock(text=user_message)]))
 
     def _stamp(
@@ -476,9 +441,6 @@ class _HarnessBase:
         Sets `last_result` before returning, on every exit path, including
         abandonment.
         """
-        if self._run_file is None:
-            raise RuntimeError("run_file must be initialised before running the loop")
-
         self._last_result = None
         total_usage = Usage()
 
@@ -545,13 +507,6 @@ class _HarnessBase:
                 outcome = _require_answer(request, (yield request))
 
             if isinstance(outcome, Failed):
-                log_error_turn(
-                    turn=turn,
-                    system=self._system,
-                    messages=self._messages,
-                    error=repr(outcome.error),
-                    run_file=self._run_file,
-                )
                 self._last_result = self._build_result(
                     text="",
                     status="error",
@@ -598,20 +553,6 @@ class _HarnessBase:
                 stop_reason=response.stop_reason.value,
                 tool_error_count=sum(1 for r in tool_results if r.is_error),
                 visible_tools=[t.name for t in visible_tools],
-            )
-
-            log_turn(
-                turn=turn,
-                system=self._system,
-                messages=self._messages,
-                response=response,
-                tool_results=tool_results,
-                latency_ms=latency,
-                run_file=self._run_file,
-                cache_storage=self._environment.storage_metadata(),
-                visible_tools=[t.name for t in visible_tools],
-                tool_error_count=sum(1 for r in tool_results if r.is_error),
-                all_tools=self._tools,
             )
 
             for decision in self._hooks.emit(
@@ -762,7 +703,6 @@ class _HarnessBase:
             text=text,
             status=status,
             turns=turns,
-            run_file=self._run_file,
             stop_reason=stop_reason,
             usage=usage,
             cache_snapshots=state.snapshots,
@@ -803,11 +743,6 @@ class _HarnessBase:
 
     def _apply_reminders(self, turn: int) -> None:
         reminder_texts: list[str] = []
-
-        for hook in self._reminders:
-            text = hook(turn, self._max_turns)
-            if text:
-                reminder_texts.append(text)
 
         for decision in self._hooks.emit(
             BeforeTurn(turn=turn, max_turns=self._max_turns, messages=self._messages)
@@ -871,7 +806,6 @@ class Harness(_HarnessBase):
             from the provider call but can still be dispatched.
         max_turns: Hard cap on provider turns before the loop stops and returns
             a ``"max_turns_exceeded"`` result.
-        run_dir: Directory where JSONL logs are written. Created on first run.
         environment: Domain services (see `RunEnvironment`). Defaults to
             `NullEnvironment`, which renders tool output with `str` and
             contributes no run state.
@@ -885,7 +819,6 @@ class Harness(_HarnessBase):
         system: str,
         tools: list[ToolSpec],
         max_turns: int = 25,
-        run_dir: str = "./runs",
         environment: RunEnvironment | None = None,
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
@@ -897,7 +830,6 @@ class Harness(_HarnessBase):
             system=system,
             tools=tools,
             max_turns=max_turns,
-            run_dir=run_dir,
             environment=environment,
             on_code=on_code,
             code_only=code_only,
@@ -1043,7 +975,6 @@ class AsyncHarness(_HarnessBase):
         system: str,
         tools: list[ToolSpec],
         max_turns: int = 25,
-        run_dir: str = "./runs",
         environment: RunEnvironment | None = None,
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
@@ -1055,7 +986,6 @@ class AsyncHarness(_HarnessBase):
             system=system,
             tools=tools,
             max_turns=max_turns,
-            run_dir=run_dir,
             environment=environment,
             on_code=on_code,
             code_only=code_only,

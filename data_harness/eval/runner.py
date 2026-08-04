@@ -33,7 +33,7 @@ def evaluate(
         adapter: Explicit adapter, overriding ``model``.
         model_label: Label used in the report (defaults to ``model`` or the
             adapter class name).
-        run_dir: Directory for JSONL logs / chart artefacts.
+        run_dir: Directory for chart artefacts / subagent working state.
         max_turns: Per-case turn cap.
         on_case: Optional callback invoked with each `CaseResult` as it lands.
         **ask_kwargs: Forwarded to `ask` (e.g. ``sql=False``).

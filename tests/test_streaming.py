@@ -8,7 +8,6 @@ Covers:
 - ToolResultEvent: correct fields, is_error propagation
 - Multiple tools in one turn
 - Multi-turn streaming (tool turn + final text turn)
-- stream() backward-compat wrapper still delivers text to on_chunk
 - Usage token counts propagated in MessageDeltaEvent
 - ask_stream() continues session history
 - Error handling: provider raises mid-stream
@@ -24,6 +23,7 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from data_harness.app.agent import AsyncAgent
+from data_harness.core.hooks import BeforeTurn, Reminder
 from data_harness.data.harness import AsyncHarness
 from data_harness.llm.providers.base import (
     AsyncProviderAdapter,
@@ -482,9 +482,7 @@ class TestEventOrdering:
 
     async def test_single_text_turn_envelope(self, tmp_path):
         adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("hi")])
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -510,9 +508,7 @@ class TestEventOrdering:
                 FakeAsyncAdapter.text("done"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[tool_spec], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[tool_spec])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -541,9 +537,7 @@ class TestEventOrdering:
                 FakeAsyncAdapter.text("done"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[tool_spec], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[tool_spec])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -580,9 +574,7 @@ class TestToolResultEvent:
                 FakeAsyncAdapter.text("done"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[tool_spec], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[tool_spec])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -610,9 +602,7 @@ class TestToolResultEvent:
                 FakeAsyncAdapter.text("recovered"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[tool_spec], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[tool_spec])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -630,9 +620,7 @@ class TestToolResultEvent:
                 FakeAsyncAdapter.text("done"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -700,9 +688,7 @@ class TestMultipleToolsPerTurn:
         )
 
         adapter = FakeAsyncAdapter([two_tool_response, FakeAsyncAdapter.text("fin")])
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=specs, run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=specs)
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -712,46 +698,6 @@ class TestMultipleToolsPerTurn:
         names = {t.tool_name for t in tr}
         assert names == {"tool_a", "tool_b"}
         assert results == ["a:1", "b:2"]
-
-
-# ---------------------------------------------------------------------------
-# 7. stream() backward-compat wrapper
-# ---------------------------------------------------------------------------
-
-
-class TestStreamBackwardCompat:
-    async def test_on_chunk_receives_text(self):
-        adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("chunk data")])
-        chunks: list[str] = []
-
-        async def on_chunk(text: str) -> None:
-            chunks.append(text)
-
-        await adapter.stream("sys", [], [], on_chunk=on_chunk)
-        assert "".join(chunks) == "chunk data"
-
-    async def test_on_chunk_not_called_for_tool_use(self):
-        adapter = FakeAsyncAdapter([FakeAsyncAdapter.tool_use("id1", "t", {"x": 1})])
-        chunks: list[str] = []
-
-        async def on_chunk(text: str) -> None:
-            chunks.append(text)
-
-        resp = await adapter.stream("sys", [], [], on_chunk=on_chunk)
-        assert chunks == []
-        assert resp.stop_reason == StopReason.TOOL_USE
-
-    async def test_stream_returns_normalized_response(self):
-        adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("hello")])
-
-        async def noop(text: str) -> None:
-            pass
-
-        resp = await adapter.stream("sys", [], [], on_chunk=noop)
-        assert isinstance(resp, NormalizedResponse)
-        assert resp.stop_reason == StopReason.END_TURN
-        assert isinstance(resp.content[0], TextBlock)
-        assert resp.content[0].text == "hello"
 
 
 # ---------------------------------------------------------------------------
@@ -783,9 +729,7 @@ class TestCustomStreamAdapter:
         )
 
         adapter = _FakeStreamingAdapter([events])
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
         collected = []
         async for e in harness.run_stream("q"):
             collected.append(e)
@@ -838,9 +782,7 @@ class TestCustomStreamAdapter:
         text_turn_events = _text_turn_events("done")
 
         adapter = _FakeStreamingAdapter([tool_turn_events, text_turn_events])
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[tool_spec], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[tool_spec])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -862,9 +804,7 @@ class TestAskStream:
                 FakeAsyncAdapter.text("second"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
         ev1 = []
         async for e in harness.run_stream("q1"):
             ev1.append(e)
@@ -894,9 +834,7 @@ class TestAskStream:
 class TestUsagePropagation:
     async def test_usage_in_message_delta(self, tmp_path):
         adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("x")])
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -924,9 +862,7 @@ class TestUsagePropagation:
                 FakeAsyncAdapter.text("done"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[tool_spec], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[tool_spec])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -953,9 +889,7 @@ class TestStreamErrorHandling:
                 yield MessageStartEvent()
                 raise RuntimeError("provider blew up")
 
-        harness = AsyncHarness(
-            adapter=BrokenAdapter(), system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=BrokenAdapter(), system="s", tools=[])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -973,7 +907,6 @@ class TestStreamErrorHandling:
         assert result is not None
         assert result.status == "error"
         assert "provider blew up" in (result.error or "")
-        assert result.run_file == harness.run_file
 
     async def test_unknown_event_types_are_ignored_not_fatal(self, tmp_path):
         """The accumulator skips events it does not recognise, on purpose.
@@ -994,9 +927,7 @@ class TestStreamErrorHandling:
                 yield "some future event type"
                 yield MessageStopEvent()
 
-        harness = AsyncHarness(
-            adapter=ChattyAdapter(), system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=ChattyAdapter(), system="s", tools=[])
         async for _ in harness.run_stream("q"):
             pass
 
@@ -1022,7 +953,6 @@ class TestStreamErrorHandling:
             adapter=FakeAsyncAdapter([FakeAsyncAdapter.text("hi")]),
             system="s",
             tools=[],
-            run_dir=str(tmp_path),
         )
         async for _ in harness.run_stream("q"):
             pass
@@ -1106,7 +1036,6 @@ class TestAsyncAgentRunStream:
                     handler=raw_tool,
                 )
             ],
-            run_dir=str(tmp_path),
         )
         events = []
         async for e in harness.run_stream("q"):
@@ -1152,7 +1081,6 @@ class TestMaxTurnsStreaming:
             system="s",
             tools=[tool_spec],
             max_turns=2,
-            run_dir=str(tmp_path),
         )
         events = []
         async for e in harness.run_stream("q"):
@@ -1166,9 +1094,7 @@ class TestMaxTurnsStreaming:
     async def test_stream_terminates_no_infinite_loop(self, tmp_path):
         """Verify that max_turns=1 with a tool-use response ends the stream."""
         adapter = FakeAsyncAdapter([FakeAsyncAdapter.tool_use("id1", "ghost", {})])
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], max_turns=1, run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[], max_turns=1)
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -1208,9 +1134,7 @@ class TestAsyncToolInStream:
                 FakeAsyncAdapter.text("done"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[tool_spec], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[tool_spec])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -1237,9 +1161,7 @@ class TestMessageHistoryAfterStream:
                 FakeAsyncAdapter.text("follow up answer"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
 
         events = []
         async for e in harness.run_stream("first question"):
@@ -1261,9 +1183,7 @@ class TestMessageHistoryAfterStream:
                 FakeAsyncAdapter.text("second"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
 
         ev1 = []
         async for e in harness.run_stream("q1"):
@@ -1308,9 +1228,7 @@ class TestToolResultEventIdCorrespondence:
                 FakeAsyncAdapter.text("done"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[tool_spec], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[tool_spec])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -1396,9 +1314,7 @@ class TestContentBlockIndices:
 class TestMessageDeltaCount:
     async def test_single_text_turn_has_exactly_one_message_delta(self, tmp_path):
         adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("hi")])
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -1420,9 +1336,7 @@ class TestMessageDeltaCount:
                 FakeAsyncAdapter.text("done"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[tool_spec], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[tool_spec])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -1454,9 +1368,7 @@ class TestEmptyToolInput:
                 FakeAsyncAdapter.text("done"),
             ]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[tool_spec], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[tool_spec])
         events = []
         async for e in harness.run_stream("q"):
             events.append(e)
@@ -1488,50 +1400,6 @@ class TestEmptyToolInput:
         ]
         resp = accumulate_stream_events(events)
         assert resp.content[0].tool_input == {}
-
-
-# ---------------------------------------------------------------------------
-# 20. stream() backward compat via Anthropic adapter's stream_events() chain
-# ---------------------------------------------------------------------------
-
-
-class TestStreamBackwardCompatAnthropicChain:
-    """The AsyncAnthropicAdapter.stream() is removed; the base class stream()
-    now uses stream_events() internally. Verify the chain for
-    FakeAsyncAdapter (which inherits both) delivers text to on_chunk."""
-
-    async def test_base_stream_uses_stream_events_chain(self):
-        adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("chain text")])
-        received: list[str] = []
-
-        async def on_chunk(text: str) -> None:
-            received.append(text)
-
-        resp = await adapter.stream("s", [], [], on_chunk=on_chunk)
-        assert "".join(received) == "chain text"
-        assert resp.content[0].text == "chain text"
-
-    async def test_base_stream_tool_turn_no_on_chunk_calls(self):
-        adapter = FakeAsyncAdapter([FakeAsyncAdapter.tool_use("id1", "t", {"x": 1})])
-        received: list[str] = []
-
-        async def on_chunk(text: str) -> None:
-            received.append(text)
-
-        resp = await adapter.stream("s", [], [], on_chunk=on_chunk)
-        assert received == []
-        assert resp.stop_reason == StopReason.TOOL_USE
-
-    async def test_base_stream_response_has_correct_content(self):
-        adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("the answer")])
-
-        async def noop(_: str) -> None:
-            pass
-
-        resp = await adapter.stream("s", [], [], on_chunk=noop)
-        assert len(resp.content) == 1
-        assert isinstance(resp.content[0], TextBlock)
-        assert resp.content[0].text == "the answer"
 
 
 # ---------------------------------------------------------------------------
@@ -1603,7 +1471,6 @@ class TestMixedContentTurnStream:
             system="s",
             tools=[tool_spec],
             max_turns=5,
-            run_dir=str(tmp_path),
         )
         events: list[StreamEvent] = []
         async for e in harness.run_stream("go"):
@@ -1675,7 +1542,6 @@ class TestMixedContentTurnStream:
             system="s",
             tools=[tool_spec],
             max_turns=5,
-            run_dir=str(tmp_path),
         )
         events: list[StreamEvent] = []
         async for e in harness.run_stream("go"):
@@ -1764,50 +1630,21 @@ class TestPublicAPIExports:
 # ---------------------------------------------------------------------------
 
 
-class TestStreamLogging:
-    """run_stream() must write JSONL turn logs, just like run_result()."""
+class TestStreamSessionRecording:
+    """run_stream() must record turns to the session, just like run_result()."""
 
-    async def test_run_file_set_after_run_stream(self, tmp_path):
+    async def test_session_records_a_turn_after_run_stream(self, tmp_path):
+        from data_harness.core.session.entries import TurnEntry
+
         adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("hi")])
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
-        assert harness.run_file is None
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
         async for _ in harness.run_stream("q"):
             pass
-        assert harness.run_file is not None
+        turns = [e for e in harness.session.store.entries() if isinstance(e, TurnEntry)]
+        assert len(turns) == 1
 
-    async def test_jsonl_file_created_by_run_stream(self, tmp_path):
-        import os
-
-        adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("logged")])
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
-        async for _ in harness.run_stream("q"):
-            pass
-        assert harness.run_file is not None
-        assert os.path.isfile(harness.run_file)
-
-    async def test_jsonl_file_contains_valid_entries(self, tmp_path):
-        import json
-
-        adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("entry")])
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
-        async for _ in harness.run_stream("q"):
-            pass
-        assert harness.run_file is not None
-        with open(harness.run_file) as f:
-            lines = [line.strip() for line in f if line.strip()]
-        assert len(lines) >= 1
-        for raw in lines:
-            entry = json.loads(raw)
-            assert isinstance(entry, dict)
-
-    async def test_jsonl_records_tool_turn_and_final_turn(self, tmp_path):
-        import json
+    async def test_session_records_tool_turn_and_final_turn(self, tmp_path):
+        from data_harness.core.session.entries import TurnEntry
 
         def echo(v: str) -> str:
             return v
@@ -1829,36 +1666,27 @@ class TestStreamLogging:
             system="s",
             tools=[tool_spec],
             max_turns=5,
-            run_dir=str(tmp_path),
         )
         async for _ in harness.run_stream("go"):
             pass
-        assert harness.run_file is not None
-        with open(harness.run_file) as f:
-            lines = [line.strip() for line in f if line.strip()]
-        # Expect at least 2 log entries — one per turn
-        assert len(lines) >= 2
-        entries = [json.loads(line) for line in lines]
-        turn_nums = [e.get("turn") for e in entries if "turn" in e]
-        assert 1 in turn_nums
-        assert 2 in turn_nums
+        turns = [e for e in harness.session.store.entries() if isinstance(e, TurnEntry)]
+        assert [t.turn for t in turns] == [1, 2]
 
-    async def test_ask_stream_reuses_same_log_file(self, tmp_path):
+    async def test_ask_stream_continues_the_same_session(self, tmp_path):
         adapter = FakeAsyncAdapter(
             [FakeAsyncAdapter.text("first"), FakeAsyncAdapter.text("second")]
         )
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
         async for _ in harness.run_stream("q1"):
             pass
-        file_after_run = harness.run_file
+        leaf_after_run = harness.session.leaf_id
 
         async for _ in harness.ask_stream("q2"):
             pass
-        file_after_ask = harness.run_file
+        leaf_after_ask = harness.session.leaf_id
 
-        assert file_after_run == file_after_ask
+        assert leaf_after_ask != leaf_after_run
+        assert harness.session.build_context() == harness.messages
 
 
 # ---------------------------------------------------------------------------
@@ -1867,21 +1695,19 @@ class TestStreamLogging:
 
 
 class TestStreamReminderHooks:
-    """register_reminder() callbacks must fire on each turn during run_stream()."""
+    """`BeforeTurn` hooks must fire on each turn during run_stream()."""
 
     async def test_reminder_fires_on_first_stream_turn(self, tmp_path):
         fired_turns: list[int] = []
 
         adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("done")])
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
 
-        def hook(turn: int, max_turns: int) -> str | None:
-            fired_turns.append(turn)
+        def hook(event: BeforeTurn) -> None:
+            fired_turns.append(event.turn)
             return None
 
-        harness.register_reminder(hook)
+        harness.on(BeforeTurn, hook)
         async for _ in harness.run_stream("q"):
             pass
 
@@ -1910,14 +1736,13 @@ class TestStreamReminderHooks:
             system="s",
             tools=[tool_spec],
             max_turns=5,
-            run_dir=str(tmp_path),
         )
 
-        def hook(turn: int, max_turns: int) -> str | None:
-            fired_turns.append(turn)
+        def hook(event: BeforeTurn) -> None:
+            fired_turns.append(event.turn)
             return None
 
-        harness.register_reminder(hook)
+        harness.on(BeforeTurn, hook)
         async for _ in harness.run_stream("q"):
             pass
 
@@ -1943,10 +1768,8 @@ class TestStreamReminderHooks:
                     yield evt
 
         adapter = _CapturingAdapter()
-        harness = AsyncHarness(
-            adapter=adapter, system="s", tools=[], run_dir=str(tmp_path)
-        )
-        harness.register_reminder(lambda turn, max_turns: "REMINDER TEXT")
+        harness = AsyncHarness(adapter=adapter, system="s", tools=[])
+        harness.on(BeforeTurn, lambda e: Reminder("REMINDER TEXT"))
         async for _ in harness.run_stream("hello"):
             pass
 
@@ -2002,7 +1825,6 @@ class TestStreamVisibleToolFiltering:
             adapter=adapter,
             system="s",
             tools=[hidden_spec, visible_spec],
-            run_dir=str(tmp_path),
         )
         async for _ in harness.run_stream("q"):
             pass
@@ -2052,7 +1874,6 @@ class TestStreamVisibleToolFiltering:
             system="FIXED SYSTEM PROMPT",
             tools=[tool_spec],
             max_turns=5,
-            run_dir=str(tmp_path),
         )
         async for _ in harness.run_stream("q"):
             pass

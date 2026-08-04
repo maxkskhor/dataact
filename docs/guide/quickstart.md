@@ -87,7 +87,6 @@ result.value       # structured answer (from answer(...))
 result.charts      # list of ChartArtifact
 result.turns       # provider turns used
 result.usage       # Usage(input_tokens=..., output_tokens=...)
-result.run_file    # path to the JSONL log
 ```
 
 ---
@@ -98,7 +97,7 @@ For full control over tools, system prompt, and wiring:
 
 ```python
 from data_harness import Agent
-from data_harness.providers.anthropic import AnthropicAdapter
+from data_harness.llm.providers.anthropic import AnthropicAdapter
 
 agent = Agent(adapter=AnthropicAdapter(model="claude-sonnet-4-6"),
               system="You are a data analyst.")
@@ -116,7 +115,7 @@ add SQL, the replay cache, the sandbox, and the approval gate. See
 
 ```python
 from data_harness import Agent
-from data_harness.testing import FakeAdapter
+from data_harness.llm.testing import FakeAdapter
 
 adapter = FakeAdapter([FakeAdapter.text("The mean is 3.0.")])
 agent = Agent(adapter=adapter, system="You are a data analyst.")

@@ -29,20 +29,16 @@ async def test_async_harness_run_result_success(tmp_path):
         system="sys",
         tools=[],
         max_turns=5,
-        run_dir=str(tmp_path),
     )
     result = await harness.run_result("test")
     assert result.text == "hello async"
     assert result.status == "success"
     assert result.turns == 1
-    assert result.run_file is not None
 
 
 async def test_async_harness_run_returns_text(tmp_path):
     adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("world")])
-    harness = AsyncHarness(
-        adapter=adapter, system="sys", tools=[], max_turns=5, run_dir=str(tmp_path)
-    )
+    harness = AsyncHarness(adapter=adapter, system="sys", tools=[], max_turns=5)
     text = await harness.run("hi")
     assert text == "world"
 
@@ -54,9 +50,7 @@ async def test_async_harness_max_turns_exceeded(tmp_path):
         FakeAsyncAdapter.tool_use("id2", "noop", {}),
     ]
     adapter = FakeAsyncAdapter(responses)
-    harness = AsyncHarness(
-        adapter=adapter, system="sys", tools=[], max_turns=2, run_dir=str(tmp_path)
-    )
+    harness = AsyncHarness(adapter=adapter, system="sys", tools=[], max_turns=2)
     result = await harness.run_result("go")
     assert result.status == "max_turns_exceeded"
     assert result.turns == 2
@@ -68,9 +62,7 @@ async def test_async_harness_run_raises_max_turns(tmp_path):
         FakeAsyncAdapter.tool_use("id2", "noop", {}),
     ]
     adapter = FakeAsyncAdapter(responses)
-    harness = AsyncHarness(
-        adapter=adapter, system="sys", tools=[], max_turns=2, run_dir=str(tmp_path)
-    )
+    harness = AsyncHarness(adapter=adapter, system="sys", tools=[], max_turns=2)
     with pytest.raises(MaxTurnsExceeded):
         await harness.run("go")
 
@@ -84,15 +76,11 @@ async def test_async_harness_ask_result(tmp_path):
     adapter = FakeAsyncAdapter(
         [FakeAsyncAdapter.text("first"), FakeAsyncAdapter.text("second")]
     )
-    harness = AsyncHarness(
-        adapter=adapter, system="sys", tools=[], max_turns=5, run_dir=str(tmp_path)
-    )
+    harness = AsyncHarness(adapter=adapter, system="sys", tools=[], max_turns=5)
     r1 = await harness.run_result("q1")
     r2 = await harness.ask_result("q2")
     assert r1.text == "first"
     assert r2.text == "second"
-    # Both run_files point to the same file (ask reuses the session logger)
-    assert r1.run_file == r2.run_file
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +113,6 @@ async def test_async_harness_dispatches_sync_tool(tmp_path):
         system="sys",
         tools=[tool_spec],
         max_turns=5,
-        run_dir=str(tmp_path),
     )
     result = await harness.run_result("go")
     assert result.status == "success"
@@ -158,7 +145,6 @@ async def test_async_harness_dispatches_async_tool(tmp_path):
         system="sys",
         tools=[tool_spec],
         max_turns=5,
-        run_dir=str(tmp_path),
     )
     result = await harness.run_result("go")
     assert result.status == "success"
@@ -192,7 +178,6 @@ async def test_async_harness_raising_handler_is_error(tmp_path):
         system="sys",
         tools=[tool_spec],
         max_turns=5,
-        run_dir=str(tmp_path),
     )
     result = await harness.run_result("go")
     assert result.status == "success"
@@ -224,9 +209,7 @@ def _text_from_events(events: list[StreamEvent]) -> str:
 
 async def test_async_harness_run_stream_yields_chunks(tmp_path):
     adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("hello world")])
-    harness = AsyncHarness(
-        adapter=adapter, system="sys", tools=[], max_turns=5, run_dir=str(tmp_path)
-    )
+    harness = AsyncHarness(adapter=adapter, system="sys", tools=[], max_turns=5)
     events: list[StreamEvent] = []
     async for event in harness.run_stream("test"):
         events.append(event)
@@ -259,7 +242,6 @@ async def test_async_harness_run_stream_tool_dispatch(tmp_path):
         system="sys",
         tools=[tool_spec],
         max_turns=5,
-        run_dir=str(tmp_path),
     )
     events: list[StreamEvent] = []
     async for event in harness.run_stream("go"):
@@ -279,9 +261,7 @@ async def test_async_harness_run_stream_tool_dispatch(tmp_path):
 
 async def test_async_harness_run_result_ids(tmp_path):
     adapter = FakeAsyncAdapter([FakeAsyncAdapter.text("ok")])
-    harness = AsyncHarness(
-        adapter=adapter, system="sys", tools=[], max_turns=5, run_dir=str(tmp_path)
-    )
+    harness = AsyncHarness(adapter=adapter, system="sys", tools=[], max_turns=5)
     result = await harness.run_result("hi", run_id="r1", session_id="s1")
     assert result.run_id == "r1"
     assert result.session_id == "s1"

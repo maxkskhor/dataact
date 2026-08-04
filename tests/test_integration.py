@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import copy
-import json
-from pathlib import Path
 
 import pandas as pd
 
@@ -117,7 +115,6 @@ class TestIntegrationFlow:
             adapter=adapter,
             system="You are a financial data analyst.",
             tools=tools,
-            run_dir=str(tmp_path),
             cache=cache,
         )
         return harness, cache, registry
@@ -144,15 +141,11 @@ class TestIntegrationFlow:
 
         assert "Analysis complete" in result
 
-        # Invariant 1: JSONL has 4 lines, each parseable
-        jsonl_files = list(Path(tmp_path).glob("*.jsonl"))
-        assert len(jsonl_files) == 1
-        raw = jsonl_files[0].read_text().strip().splitlines()
-        lines = [json.loads(line) for line in raw]
-        assert len(lines) == 4
-        for line in lines:
-            assert "turn" in line
-            assert "system_hash" in line
+        # Invariant 1: the session tree recorded all 4 turns.
+        from data_harness.core.session.entries import TurnEntry
+
+        turns = [e for e in harness.session.store.entries() if isinstance(e, TurnEntry)]
+        assert [t.turn for t in turns] == [1, 2, 3, 4]
 
         # Invariant 2: SessionCache contains the full raw DataFrame
         handles = cache.list_handles()
@@ -229,8 +222,8 @@ class TestIntegrationFlow:
         assert "preloaded_data" not in all_text
         assert "sensitive" not in all_text
 
-    def test_system_logging_policy(self, tmp_path):
-        """Turn 1 JSONL has system + hash; turns 2+ have hash only; all hashes match."""
+    def test_system_prompt_identical_every_turn(self, tmp_path):
+        """The system prompt sent to the provider never changes turn to turn."""
         adapter = FakeAdapter(
             [
                 make_tool_response("tu_1", "load_connectors", {"name": "market_data"}),
@@ -240,17 +233,9 @@ class TestIntegrationFlow:
         harness, _, _ = self._build_harness(tmp_path, adapter)
         harness.run("analyze")
 
-        jsonl_files = list(Path(tmp_path).glob("*.jsonl"))
-        raw = jsonl_files[0].read_text().strip().splitlines()
-        lines = [json.loads(line) for line in raw]
-
-        assert "system" in lines[0]
-        assert "system_hash" in lines[0]
-        assert "system" not in lines[1]
-        assert "system_hash" in lines[1]
-
-        hashes = [line["system_hash"] for line in lines]
-        assert len(set(hashes)) == 1
+        systems = [call["system"] for call in adapter._calls]
+        assert len(systems) == 2
+        assert len(set(systems)) == 1
 
     def test_subagent_integration(self, tmp_path):
         """Subagent spawns fresh adapter and cache; publish_created round-trip."""
@@ -268,7 +253,6 @@ class TestIntegrationFlow:
             adapter_factory=sub_adapter_factory,
             parent_tools=tools,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
 
         # Test text_only
@@ -302,7 +286,6 @@ class TestIntegrationFlow:
             adapter_factory=sub_adapter_factory,
             parent_tools=[],
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
         subagent_spec.handler(task="task")
         assert "subagent" not in sub_tools_seen

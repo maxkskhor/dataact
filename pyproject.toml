@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "data-harness"
-version = "0.13.0"
+version = "1.0.0"
 description = "Data agent with Python-native tools (no bash)"
 readme = "README.md"
 license = { text = "MIT" }

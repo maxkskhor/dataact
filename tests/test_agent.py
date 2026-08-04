@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from data_harness.app.agent import Agent
+from data_harness.core.hooks import BeforeTurn
 from data_harness.data.cache import SessionCache
 from data_harness.data.harness import Harness
-from data_harness.data.tools.planner import Planner
 from data_harness.llm.testing import FakeAdapter
 from data_harness.llm.types import ToolResultBlock, ToolSpec
 
@@ -63,15 +61,6 @@ class TestAgentPhase1:
         # A fresh harness is built per run; reference should change
         assert agent.last_harness is not first_h
 
-    def test_last_run_file_set_after_run(self, tmp_path):
-        adapter = FakeAdapter([FakeAdapter.text("done")])
-        agent = Agent(adapter=adapter, system="sys", run_dir=str(tmp_path))
-        assert agent.last_run_file is None
-        agent.run("hi")
-        assert agent.last_run_file is not None
-        assert Path(agent.last_run_file).exists()
-        assert Path(agent.last_run_file).suffix == ".jsonl"
-
     def test_cache_is_exposed(self, tmp_path):
         adapter = FakeAdapter([FakeAdapter.text("done")])
         agent = Agent(adapter=adapter, system="sys", run_dir=str(tmp_path))
@@ -86,15 +75,12 @@ class TestAgentPhase1:
         assert "preloaded" in agent.cache.list_handles()
 
     def test_run_dir_optional(self, tmp_path, monkeypatch):
-        # When run_dir is omitted the Harness default is used. We don't want a
-        # quick-start example to litter the tmp dir, so cd into tmp_path so the
-        # default "./runs" lands somewhere disposable.
+        # When run_dir is omitted, chart artefacts fall back to "./runs/charts".
+        # cd into tmp_path so a run with no run_dir doesn't litter the repo.
         monkeypatch.chdir(tmp_path)
         adapter = FakeAdapter([FakeAdapter.text("done")])
         agent = Agent(adapter=adapter, system="sys")
-        agent.run("hi")
-        runs = list((tmp_path / "runs").glob("*.jsonl"))
-        assert len(runs) == 1
+        assert agent.run("hi") == "done"
 
     def test_max_turns_propagates(self, tmp_path):
         adapter = FakeAdapter([FakeAdapter.text("done")])
@@ -215,13 +201,10 @@ class TestAgentSession:
         agent = Agent(adapter=adapter, system="sys", run_dir=str(tmp_path))
         session = agent.session()
 
-        assert session.run_file is None
+        assert agent.last_harness is None
         session.ask("hi")
 
         assert agent.last_harness is session.harness
-        assert agent.last_run_file == session.run_file
-        assert session.run_file is not None
-        assert Path(session.run_file).exists()
 
 
 class TestAgentConnectors:
@@ -376,9 +359,8 @@ class TestAgentPlanner:
         agent.enable_planner()
         agent.run("plan")
 
-        reminders = agent.last_harness.reminders
-        assert len(reminders) == 1
-        assert isinstance(reminders[0].__self__, Planner)
+        before_turn_hooks = agent.last_harness.hooks.hooks.get(BeforeTurn, [])
+        assert len(before_turn_hooks) == 1
 
     def test_planner_absent_when_not_enabled(self, tmp_path):
         adapter = FakeAdapter([FakeAdapter.text("done")])
@@ -388,7 +370,7 @@ class TestAgentPlanner:
 
         names = {t.name for t in adapter.calls[0]["tools"]}
         assert not any(name.startswith("planner__") for name in names)
-        assert agent.last_harness.reminders == []
+        assert agent.last_harness.hooks.hooks.get(BeforeTurn, []) == []
 
     def test_enable_planner_twice_does_not_duplicate_specs_or_hooks(self, tmp_path):
         adapter = FakeAdapter([FakeAdapter.text("done")])
@@ -402,7 +384,7 @@ class TestAgentPlanner:
         assert names.count("planner__add") == 1
         assert names.count("planner__update") == 1
         assert names.count("planner__list") == 1
-        assert len(agent.last_harness.reminders) == 1
+        assert len(agent.last_harness.hooks.hooks.get(BeforeTurn, [])) == 1
 
     def test_planner_state_does_not_leak_across_runs(self, tmp_path):
         adapter = FakeAdapter(
@@ -494,7 +476,6 @@ class TestAgentSubagents:
             adapter_factory,
             parent_tools,
             parent_cache,
-            run_dir,
             get_sub_cache=None,
             make_sub_tools=None,
         ):
@@ -543,7 +524,7 @@ class TestAgentSubagents:
 
         agent.run("delegate")
 
-        assert _subagent_harness(captured).reminders == []
+        assert _subagent_harness(captured).hooks.hooks.get(BeforeTurn, []) == []
 
     def test_subagent_connector_tools_are_fresh_and_hidden(self, monkeypatch, tmp_path):
         from data_harness.data.harness import Harness as RealHarness

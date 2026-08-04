@@ -79,7 +79,6 @@ class TestSubagentBasic:
             adapter_factory=adapter_factory,
             parent_tools=tools,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
         result = subagent_spec.handler(task="do something")
         assert "sub result" in result
@@ -96,7 +95,6 @@ class TestSubagentBasic:
             adapter_factory=adapter_factory,
             parent_tools=tools,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
         # Add subagent spec to tools list and verify it can't be passed to sub
         tools_with_subagent = [subagent_spec]
@@ -104,7 +102,6 @@ class TestSubagentBasic:
             adapter_factory=adapter_factory,
             parent_tools=tools_with_subagent,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
         # The sub should not have subagent in its tools
         # Verify sub-harness builds successfully but excludes subagent tool
@@ -125,7 +122,6 @@ class TestSubagentBasic:
             adapter_factory=adapter_factory,
             parent_tools=tools,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
         subagent_spec.handler(task="task 1")
         subagent_spec.handler(task="task 2")
@@ -144,7 +140,6 @@ class TestSubagentBasic:
             adapter_factory=adapter_factory,
             parent_tools=tools,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
         subagent_spec.handler(task="check cache", input_handles=None)
         # Parent cache should be unchanged
@@ -174,7 +169,6 @@ class TestSubagentIsolation:
             adapter_factory=adapter_factory,
             parent_tools=tools,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
         subagent_spec.handler(task="task", input_handles=None)
         all_text = " ".join(
@@ -217,7 +211,6 @@ class TestSubagentIsolation:
             adapter_factory=adapter_factory,
             parent_tools=tools,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
         # Even if we can't easily inspect sub-cache, at least verify no error
         result = subagent_spec.handler(task="task", input_handles=["wanted"])
@@ -234,7 +227,6 @@ class TestSubagentIsolation:
             adapter_factory=adapter_factory,
             parent_tools=tools,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
         result = subagent_spec.handler(task="task", input_handles=["nonexistent"])
         assert (
@@ -254,7 +246,6 @@ class TestSubagentIsolation:
             adapter_factory=adapter_factory,
             parent_tools=tools,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
         subagent_spec.handler(task="task", output_policy="text_only")
         # Parent cache should still be empty
@@ -286,7 +277,6 @@ class TestSubagentIsolation:
             adapter_factory=adapter_factory,
             parent_tools=[PythonInterpreter.make_tool_spec(parent_cache)],
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
 
         subagent_spec.handler(
@@ -323,7 +313,6 @@ class TestSubagentIsolation:
             adapter_factory=adapter_factory,
             parent_tools=parent_tools,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
 
         result = subagent_spec.handler(task="use connector")
@@ -359,7 +348,6 @@ class TestSubagentIsolation:
             adapter_factory=adapter_factory,
             parent_tools=[],
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
             get_sub_cache=lambda: sub_cache,
             make_sub_tools=make_sub_tools,
         )
@@ -387,7 +375,6 @@ class TestSubagentPublishCreated:
             adapter_factory=adapter_factory,
             parent_tools=tools,
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
             get_sub_cache=lambda: _CacheWithPrefill(),
         )
         result = subagent_spec.handler(task="task", output_policy="publish_created")
@@ -410,7 +397,6 @@ class TestSubagentPublishCreated:
             adapter_factory=adapter_factory,
             parent_tools=[parent_tool],
             parent_cache=SessionCache(),
-            run_dir=str(tmp_path),
         )
         # Run subagent - even if it flips visibility internally
         subagent_spec.handler(task="task")
@@ -437,7 +423,6 @@ class TestSubagentPublishCreated:
             adapter_factory=adapter_factory,
             parent_tools=[PythonInterpreter.make_tool_spec(parent_cache)],
             parent_cache=parent_cache,
-            run_dir=str(tmp_path),
         )
 
         result = subagent_spec.handler(task="publish", output_policy="publish_created")

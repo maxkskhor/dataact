@@ -1,10 +1,9 @@
 """A session persisted as one JSONL file: a header, then one line per entry.
 
 Appending is one line, so writing a session is linear in the number of
-entries. The older `runs/*.jsonl` turn log re-serialises the whole message
-history every turn, which is quadratic and cannot be read back into anything
-runnable. This store is what replaces it; that log is still written alongside
-for now, so per-turn write cost is unchanged until it is removed.
+entries. This replaced the older `runs/*.jsonl` turn log, which re-serialised
+the whole message history every turn (quadratic) and could not be read back
+into anything runnable.
 
 The format is deliberately boring. A session file is greppable, diffable, and
 recoverable by hand, which matters more for a debugging artefact than

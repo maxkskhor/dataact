@@ -20,5 +20,6 @@ print(f"text:      {result.text}")
 print(f"status:    {result.status}")
 print(f"turns:     {result.turns}")
 print(f"run_id:    {result.run_id}")
-print(f"run_file:  {result.run_file}")
-print(f"usage:     input={result.usage.input_tokens} output={result.usage.output_tokens}")
+print(
+    f"usage:     input={result.usage.input_tokens} output={result.usage.output_tokens}"
+)

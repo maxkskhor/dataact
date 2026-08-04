@@ -14,7 +14,7 @@ Run them with `uv run python examples/<name>.py`. Most need a provider key
 | [`cache_benchmark.py`](https://github.com/maxkskhor/data-harness/blob/main/examples/cache_benchmark.py) | code-replay cache: zero-token repeat questions | none (deterministic) |
 | [`mcp_demo.py`](https://github.com/maxkskhor/data-harness/blob/main/examples/mcp_demo.py) | use an external MCP server's tools through the harness | API key, `[mcp]` |
 | [`advanced_wiring.py`](https://github.com/maxkskhor/data-harness/blob/main/examples/advanced_wiring.py) | explicit `Harness` wiring with connectors, planner, subagents | `ANTHROPIC_API_KEY` |
-| [`inspect_run.py`](https://github.com/maxkskhor/data-harness/blob/main/examples/inspect_run.py) | `RunResult` / JSONL run inspection | API key |
+| [`inspect_run.py`](https://github.com/maxkskhor/data-harness/blob/main/examples/inspect_run.py) | `RunResult` inspection | none (`FakeAdapter`) |
 | [`quickstart.py`](https://github.com/maxkskhor/data-harness/blob/main/examples/quickstart.py) | minimal `Agent` example | `ANTHROPIC_API_KEY` |
 
 ## The Streamlit demo

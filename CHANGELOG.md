@@ -1,10 +1,10 @@
 # Changelog
 
-### Unreleased
+### 1.0.0
 
 Structural refactor, taking its shape from the pi agent harness. Every
 previous import path still works, and resolves to the same object rather than
-a copy.
+a copy. One breaking change: the per-turn JSONL log is gone (see below).
 
 - **Layers.** The package was one flat namespace where the loop constructed a
   `SessionCache` and called `format_tool_output`. It is now `llm` -> `core` ->
@@ -35,8 +35,17 @@ a copy.
   so code catching `RuntimeError`/`ValueError` still works.
 - `RunResult` gains `stopped_by`; `Agent` gains `last_result` and `hooks`;
   `resolve_async_adapter` mirrors `resolve_adapter`.
+- **Breaking: the `runs/*.jsonl` turn log is gone.** The session tree is now
+  the sole durable record of a run, and it doesn't pay the old log's
+  quadratic per-turn write cost. Removed: `RunResult.run_file`,
+  `Harness`/`AsyncHarness`'s `run_file` property and `run_dir` constructor
+  argument, `Agent.last_run_file`. `Agent(run_dir=...)` is unaffected — it
+  still controls where chart artefacts and subagent working state land.
+  Anything that read `result.run_file` for post-hoc inspection should read
+  `harness.session` instead (`session.store.entries()`, or `JsonlSessionStore`
+  to persist it).
 
-913 tests, up from 547.
+891 tests, up from 547.
 
 
 ### 0.13.0

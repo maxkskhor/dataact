@@ -1,9 +1,8 @@
-"""Phase 4: hooks.
+"""Hooks: the loop's extension points.
 
-The loop used to have exactly one extension point, `register_reminder`, which
-could append text to the prompt and nothing else. Everything more interesting
-was hardcoded: the interpreter approval gate lived inside the dispatcher and
-was keyed on the literal string "python_interpreter".
+The interpreter approval gate used to live inside the dispatcher, keyed on the
+literal string "python_interpreter". Everything more interesting than a
+suffix reminder was hardcoded that way.
 
 The test that matters most here is not that hooks fire. It is that the gate is
 now built out of the same public mechanism anyone else has, which is what
@@ -124,7 +123,6 @@ def test_the_approval_gate_is_an_ordinary_hook(tmp_path):
         adapter=FakeAdapter([]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         code_only=True,
     )
 
@@ -132,9 +130,7 @@ def test_the_approval_gate_is_an_ordinary_hook(tmp_path):
 
 
 def test_no_gate_hook_is_registered_when_the_gate_is_off(tmp_path):
-    harness = Harness(
-        adapter=FakeAdapter([]), system="sys", tools=[], run_dir=str(tmp_path)
-    )
+    harness = Harness(adapter=FakeAdapter([]), system="sys", tools=[])
     assert BeforeToolCall not in harness.hooks.hooks
 
 
@@ -147,7 +143,6 @@ def test_a_hook_can_refuse_a_tool_call(tmp_path):
         adapter=FakeAdapter(tool_then_text()),
         system="sys",
         tools=[echo_spec(calls)],
-        run_dir=str(tmp_path),
     )
     harness.on(BeforeToolCall, lambda e: Block("not allowed right now"))
 
@@ -164,7 +159,6 @@ def test_a_refusal_can_be_marked_an_error_when_it_really_is_one(tmp_path):
         adapter=FakeAdapter(tool_then_text()),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.on(BeforeToolCall, lambda e: Block("malformed input", is_error=True))
 
@@ -179,7 +173,6 @@ def test_a_hook_sees_what_the_model_asked_for(tmp_path):
         adapter=FakeAdapter(tool_then_text()),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.on(BeforeToolCall, lambda e: seen.append((e.tool_name, e.tool_input)))
 
@@ -196,7 +189,6 @@ def test_a_hook_can_rewrite_a_tool_result(tmp_path):
         adapter=FakeAdapter(tool_then_text()),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.on(AfterToolCall, lambda e: Replace(f"[redacted: {len(e.result.content)}]"))
 
@@ -211,7 +203,6 @@ def test_after_tool_call_sees_the_real_result(tmp_path):
         adapter=FakeAdapter(tool_then_text()),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.on(AfterToolCall, lambda e: seen.append(e.result.content))
 
@@ -228,31 +219,12 @@ def test_a_hook_can_append_a_reminder(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("done")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.on(BeforeTurn, lambda e: Reminder(f"turn {e.turn} of {e.max_turns}"))
 
     harness.run("go")
 
     assert "turn 1 of 25" in harness.messages[0].content[-1].text
-
-
-def test_the_legacy_reminder_api_still_works(tmp_path):
-    """`register_reminder` predates hooks and must keep working."""
-    harness = Harness(
-        adapter=FakeAdapter([FakeAdapter.text("done")]),
-        system="sys",
-        tools=[],
-        run_dir=str(tmp_path),
-    )
-    harness.register_reminder(lambda turn, max_turns: "legacy reminder")
-    harness.on(BeforeTurn, lambda e: Reminder("hook reminder"))
-
-    harness.run("go")
-
-    text = harness.messages[0].content[-1].text
-    assert "legacy reminder" in text
-    assert "hook reminder" in text
 
 
 # ── stopping a run ──────────────────────────────────────────────────────────
@@ -270,7 +242,6 @@ def test_an_after_turn_hook_can_stop_the_run(tmp_path):
         ),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.on(AfterTurn, lambda e: Stop("budget exhausted") if e.turn >= 1 else None)
 
@@ -299,7 +270,6 @@ async def test_after_turn_sees_the_tokens_already_spent(tmp_path):
         ),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.on(AfterTurn, lambda e: seen.append((e.input_tokens, e.output_tokens)))
 
@@ -311,7 +281,7 @@ async def test_after_turn_sees_the_tokens_already_spent(tmp_path):
 
 def test_a_before_turn_stop_spends_nothing(tmp_path):
     adapter = FakeAdapter([FakeAdapter.text("should not be called")])
-    harness = Harness(adapter=adapter, system="sys", tools=[], run_dir=str(tmp_path))
+    harness = Harness(adapter=adapter, system="sys", tools=[])
     harness.on(BeforeTurn, lambda e: Stop("refused before starting"))
 
     result = harness.run_result("go")
@@ -326,7 +296,6 @@ def test_a_stop_does_not_leak_into_the_next_run(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("one"), FakeAdapter.text("two")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.on(BeforeTurn, lambda e: Stop("first only") if next(stops, False) else None)
 
@@ -346,7 +315,6 @@ async def test_hooks_work_the_same_under_the_async_driver(tmp_path):
         adapter=FakeAsyncAdapter(tool_then_text(FakeAsyncAdapter)),
         system="sys",
         tools=[echo_spec(calls)],
-        run_dir=str(tmp_path),
     )
     harness.on(BeforeToolCall, lambda e: Block("no"))
 
@@ -362,7 +330,6 @@ async def test_hooks_apply_to_streamed_runs(tmp_path):
         adapter=FakeAsyncAdapter(tool_then_text(FakeAsyncAdapter)),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.on(AfterToolCall, lambda e: Replace("rewritten"))
 
@@ -386,7 +353,6 @@ def test_a_registry_can_be_passed_to_the_constructor(tmp_path):
         adapter=FakeAdapter(tool_then_text()),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
         hooks=registry,
     )
     harness.run("go")
@@ -407,7 +373,6 @@ def test_an_after_turn_stop_keeps_the_model_answer(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("the answer"), FakeAdapter.text("more")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.on(AfterTurn, lambda e: Stop("capped"))
 
@@ -422,7 +387,6 @@ def test_a_before_turn_stop_is_a_success_not_an_error(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("never")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.on(BeforeTurn, lambda e: Stop("refused"))
 
@@ -444,7 +408,6 @@ def test_a_mid_run_stop_keeps_the_usage_already_spent(tmp_path):
         ),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.on(BeforeTurn, lambda e: Stop("capped") if e.turn == 3 else None)
 
@@ -470,7 +433,6 @@ def test_a_capped_run_says_so(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("never")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.on(BeforeTurn, lambda e: Stop("out of budget"))
 
@@ -485,7 +447,6 @@ def test_an_after_turn_stop_also_says_why(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("the answer"), FakeAdapter.text("more")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.on(AfterTurn, lambda e: Stop("spend cap reached"))
 
@@ -500,7 +461,6 @@ def test_an_ordinary_run_is_not_marked_as_stopped(tmp_path):
         adapter=FakeAdapter([FakeAdapter.text("done")]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     assert harness.run_result("go").stopped_by is None
 
@@ -525,7 +485,6 @@ def test_a_raising_hook_still_produces_a_result(tmp_path):
         ),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
     )
     harness.on(BeforeTurn, bad)
 
@@ -552,7 +511,6 @@ def test_a_shared_registry_does_not_leak_one_harness_policy_into_another(tmp_pat
         adapter=FakeAdapter([]),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
         code_only=True,
         hooks=shared,
     )
@@ -560,7 +518,6 @@ def test_a_shared_registry_does_not_leak_one_harness_policy_into_another(tmp_pat
         adapter=FakeAdapter(tool_then_text()),
         system="sys",
         tools=[echo_spec()],
-        run_dir=str(tmp_path),
         hooks=shared,
     )
 
@@ -610,7 +567,6 @@ def test_a_failing_tool_result_reaches_after_tool_call(tmp_path):
         adapter=FakeAdapter(tool_then_text()),
         system="sys",
         tools=[spec],
-        run_dir=str(tmp_path),
     )
     harness.on(
         AfterToolCall,
@@ -636,7 +592,6 @@ def test_a_call_to_an_unknown_tool_reaches_the_hooks(tmp_path):
         ),
         system="sys",
         tools=[],
-        run_dir=str(tmp_path),
     )
     harness.on(BeforeToolCall, lambda e: seen.append(e.tool_name))
 

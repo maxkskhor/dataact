@@ -30,7 +30,6 @@ def _result(text="", value=None, charts=None) -> RunResult:
         text=text,
         status="success",
         turns=1,
-        run_file=None,
         stop_reason=None,
         usage=Usage(),
         value=value,

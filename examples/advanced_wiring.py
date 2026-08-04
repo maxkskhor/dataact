@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from data_harness.core.hooks import BeforeTurn, Reminder
 from data_harness.data.cache import SessionCache
 from data_harness.data.harness import Harness
 from data_harness.data.tools.connectors import ConnectorRegistry
@@ -103,7 +104,6 @@ def main() -> None:
         adapter_factory=adapter_factory,
         parent_tools=base_tools,
         parent_cache=session_cache,
-        run_dir="./runs",
         make_sub_tools=build_base_tools,
     )
     all_tools.append(subagent_spec)
@@ -122,12 +122,15 @@ def main() -> None:
         ),
         tools=all_tools,
         max_turns=10,
-        run_dir="./runs",
         cache=session_cache,
     )
 
-    # Register planner reminder
-    harness.register_reminder(planner.reminder_hook)
+    # Wire the planner's nag reminder as a BeforeTurn hook.
+    def planner_reminder(event: BeforeTurn) -> Reminder | None:
+        text = planner.reminder_hook(event.turn, event.max_turns)
+        return Reminder(text) if text else None
+
+    harness.on(BeforeTurn, planner_reminder)
 
     print("Starting agent-harness demo...")
     print("=" * 60)
@@ -142,10 +145,8 @@ def main() -> None:
     print("\nFinal response:")
     print(result)
 
-    run_files = list(Path("./runs").glob("*.jsonl"))
-    if run_files:
-        latest = max(run_files, key=lambda f: f.stat().st_mtime)
-        print(f"\nJSONL log: {latest}")
+    turns = harness.session.store.entries()
+    print(f"\nSession recorded {len(turns)} entries across the run.")
 
 
 if __name__ == "__main__":

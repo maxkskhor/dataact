@@ -65,8 +65,6 @@ class RunResult:
         text: The final text response from the model.
         status: ``"success"``, ``"max_turns_exceeded"``, or ``"error"``.
         turns: Number of provider turns executed.
-        run_file: Path to the JSONL log for this run, or ``None`` if logging
-            was disabled.
         stop_reason: Provider stop reason from the final turn, or ``None`` on
             error/max-turns.
         usage: Cumulative token counts across all turns.
@@ -92,7 +90,6 @@ class RunResult:
     text: str
     status: Literal["success", "max_turns_exceeded", "error"]
     turns: int
-    run_file: str | None
     stop_reason: StopReason | None
     usage: Usage
     cache_snapshots: dict[str, str] = field(default_factory=dict)
