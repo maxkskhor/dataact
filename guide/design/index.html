@@ -663,6 +663,72 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-loop-two-drivers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One loop, two drivers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-session-tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The session tree
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compaction
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Errors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#no-bash" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -729,10 +795,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#jsonl-turn-logging" class="md-nav__link">
+  <a href="#per-turn-accounting" class="md-nav__link">
     <span class="md-ellipsis">
       
-        JSONL turn logging
+        Per-turn accounting
       
     </span>
   </a>
@@ -1072,6 +1138,91 @@
 <p>This page explains the core design decisions in <code>data-harness</code> and why they
 exist. Understanding them makes the API surface predictable.</p>
 <hr />
+<h2 id="layers">Layers</h2>
+<p>The package is layered, bottom up. A layer may import the ones below it and
+none above; <code>tests/test_layers.py</code> enforces that statically.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>data_harness/
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  llm/    provider adapters and the wire types they speak
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  core/   the loop, the session tree, RunResult, hooks, compaction
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  data/   the session cache, interpreter, SQL, connectors, MCP
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  app/    Agent, ask(), the CLI
+</code></pre></div>
+<p>The boundary that matters is <code>core</code> not knowing what a DataFrame is. The loop
+takes a <code>RunEnvironment</code> supplying two things it cannot decide for itself: how
+to render a tool's return value, and what the run's final state was. The data
+layer's implementation is backed by the <code>SessionCache</code>; <code>NullEnvironment</code> is
+the domain-free default. That is why the harness can be read, tested, and
+reused without pandas.</p>
+<hr />
+<h2 id="one-loop-two-drivers">One loop, two drivers</h2>
+<p><code>_HarnessBase._plan</code> is the only ReAct loop. It is a generator that owns every
+decision in a turn and performs no network I/O: it <em>asks</em> for I/O by yielding
+<code>CallProvider</code>, <code>CallTool</code>, or <code>ToolFinished</code>, and the driver answers with
+<code>Ok(value)</code> or <code>Failed(exc)</code>.</p>
+<ul>
+<li><code>Harness</code> performs those inline on the calling thread. No event loop is
+  created, so Ctrl-C lands promptly and a tool handler keeps its thread
+  affinity: a <code>sqlite3</code> connection opened at setup still works.</li>
+<li><code>AsyncHarness</code> awaits the provider and offloads blocking handlers to a
+  worker thread, so a long pandas call cannot stall a shared event loop.</li>
+</ul>
+<p>There used to be four near-copies of this loop (sync/async x result/stream).
+They had drifted: the streaming copy discarded token usage on provider errors,
+and <code>AsyncAgent</code> was missing eight features <code>Agent</code> had.</p>
+<hr />
+<h2 id="the-session-tree">The session tree</h2>
+<p>A session is an append-only tree of typed entries, each naming its parent,
+with a movable leaf. <strong>The conversation the model sees is derived by walking
+root to leaf, and is never stored</strong>, so there is no second copy to disagree
+with the log.</p>
+<p>Everything else follows from that:</p>
+<ul>
+<li><strong>Resume</strong> — reopen a session file in another process and carry on.</li>
+<li><strong>Forking</strong> — move the leaf and append; both branches survive, so a turn can
+  be retried with a different model without destroying the first attempt.</li>
+<li><strong>Compaction is an entry, not an edit.</strong> The compacted turns stay in the
+  tree; moving the leaf back restores them.</li>
+<li>Writing is one line per entry — linear in the number of entries, not
+  quadratic in the size of the history.</li>
+</ul>
+<p>A derived context is always something a provider will accept: a tool call with
+no result, or a result with no call, is dropped. Both are reachable without a
+bug, because a run killed mid-tool leaves an orphaned call on disk.</p>
+<hr />
+<h2 id="hooks">Hooks</h2>
+<p>Four events, each with a decision a hook may return:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>BeforeTurn     -&gt; Reminder(text) | Stop(reason)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>BeforeToolCall -&gt; Block(reason, is_error)
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>AfterToolCall  -&gt; Replace(content, is_error)
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>AfterTurn      -&gt; Stop(reason)
+</code></pre></div>
+<p>The interpreter approval gate is built from exactly this mechanism rather than
+being special-cased inside the loop, which is the evidence that the mechanism
+is sufficient. <code>AfterTurn</code> is where a spend cap belongs: the tokens are already
+counted, so the decision is made on real numbers.</p>
+<p>Hooks must not raise. One that does is reported as <code>HookError</code>, and the run
+fails with its usage intact rather than vanishing.</p>
+<hr />
+<h2 id="compaction">Compaction</h2>
+<p><code>max_turns</code> is a wall, not a strategy: a run needing thirty turns fails at
+twenty-five having paid for all of them. Compaction summarises older turns and
+replays the summary in their place.</p>
+<p>The cut always lands on a turn boundary, so an assistant tool call is never
+separated from the result answering it. When there is nowhere safe to cut,
+nothing is cut.</p>
+<p>Compaction costs this library less than it costs a coding agent: the data
+lives in the cache under handles, not in the transcript, so compacting away
+the turn that loaded a DataFrame loses the discussion of it, not the frame.</p>
+<hr />
+<h2 id="errors">Errors</h2>
+<p>Every failure carries a stable <code>code</code>, because a caller deciding between
+retrying, showing the user an error, and billing the attempt needs to tell a
+rate-limited provider from a typo in the model's pandas from a sandbox
+timeout. Codes are API; messages are not.</p>
+<p><code>ExecutionError</code> means the code never ran (timeout, killed process).
+<code>PythonInterpreterError</code> means it ran and failed, which is the model's problem
+and is handed back to it as a tool result.</p>
+<hr />
 <h2 id="no-bash">No bash</h2>
 <p>Giving an agent shell access is the path of least resistance, but it creates
 real problems in data workflows:</p>
@@ -1098,11 +1249,11 @@ history. Instead:</p>
    etc.) to operate on the data.</li>
 </ol>
 <p>This keeps context lean without hiding data from the model.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Tool result →  {&quot;type&quot;: &quot;dataframe&quot;, &quot;shape&quot;: [1200, 5],
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                &quot;columns&quot;: [&quot;date&quot;, &quot;revenue&quot;, ...], &quot;sample&quot;: [...]}
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>Model code  →  result = sales_df[sales_df.revenue &gt; 1000].groupby(&quot;category&quot;).sum()
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>               save(&quot;top_categories&quot;, result)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Tool result →  {&quot;type&quot;: &quot;dataframe&quot;, &quot;shape&quot;: [1200, 5],
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>                &quot;columns&quot;: [&quot;date&quot;, &quot;revenue&quot;, ...], &quot;sample&quot;: [...]}
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>Model code  →  result = sales_df[sales_df.revenue &gt; 1000].groupby(&quot;category&quot;).sum()
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>               save(&quot;top_categories&quot;, result)
 </code></pre></div>
 <hr />
 <h2 id="prefix-stable-system-prompt">Prefix-stable system prompt</h2>
@@ -1141,18 +1292,19 @@ and debuggable independently of the parent run.</p>
 <p>Subagents cannot spawn further subagents — <code>SubagentRecursionError</code> is raised
 if they try.</p>
 <hr />
-<h2 id="jsonl-turn-logging">JSONL turn logging</h2>
-<p>Every turn is logged to a <code>.jsonl</code> file from the start of the run, not bolted
-on later. Each line is a complete turn record:</p>
+<h2 id="per-turn-accounting">Per-turn accounting</h2>
+<p>Every turn is recorded on the session tree as a <code>TurnEntry</code> from the start of
+the run, not bolted on later:</p>
 <ul>
-<li>The system prompt and message history</li>
-<li>The provider response</li>
-<li>Tool results</li>
-<li>Latency and token counts</li>
-<li>Cache storage metadata</li>
+<li>Token counts (input, output, cache read/write) and latency</li>
+<li>The provider's stop reason</li>
+<li>Tool error count and the names of the tools visible on that turn</li>
 </ul>
-<p>The log is designed to reconstruct a run without dumping raw dataset payloads.
-Cache handles are logged as snapshots, not raw values.</p>
+<p>The entry carries counts and metadata only — never raw cache values or the
+full message content, which live in the tree's <code>MessageEntry</code> nodes as the
+same <code>Message</code> objects the model saw, snapshots and all. A <code>JsonlSessionStore</code>
+persists the whole tree to disk, one line per entry, so a run reconstructs
+without dumping raw dataset payloads.</p>
 <hr />
 <h2 id="key-invariants">Key invariants</h2>
 <p>These are design constraints, not incidental behaviour:</p>
@@ -1167,7 +1319,7 @@ Cache handles are logged as snapshots, not raw values.</p>
 <li>Cache handles are valid Python identifiers.</li>
 <li><code>python_interpreter</code> uses fresh locals per call.</li>
 <li>Subagents do not inherit parent cache implicitly.</li>
-<li>JSONL logs support run reconstruction without raw payload leakage.</li>
+<li>The session tree supports run reconstruction without raw payload leakage.</li>
 </ul>
 <p>Tests in <code>tests/</code> assert these invariants directly.</p>
 

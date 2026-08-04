@@ -1270,8 +1270,7 @@ tests with <code>FakeAdapter</code>. Use recent models for a meaningful comparis
 <p><code>EvalReport.to_dict()</code> / <code>to_json()</code> produce a machine-readable summary
 (accuracy, per-model &amp; per-category, cost, every case result). The example
 runners write a timestamped JSON into the tracked <code>evals/results/</code> directory, so
-runs are diffable in git (per-run JSONL logs and charts stay in gitignored
-<code>runs/</code>):</p>
+runs are diffable in git (chart artefacts stay in gitignored <code>runs/</code>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>examples/eval_demo.py<span class="w"> </span>--suite<span class="w"> </span>hard<span class="w">   </span><span class="c1"># → evals/results/hard_&lt;ts&gt;.{json,md}</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>examples/eval_wtq.py<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span><span class="w">      </span><span class="c1"># → evals/results/wtq_&lt;ts&gt;.{json,md}</span>
 </code></pre></div>
@@ -1358,7 +1357,7 @@ models. Model differentiation lives in messy/real-world data.</p>
 <ul>
 <li><code>answer()</code> → <code>.value</code> gives a <strong>checkable</strong> result, so grading is programmatic.</li>
 <li><strong>OpenRouter</strong> turns the model matrix into a one-key, cost-aware leaderboard.</li>
-<li><strong>JSONL run logs</strong> make every graded case reconstructable.</li>
+<li>The <strong>session tree</strong> makes every graded case reconstructable.</li>
 <li>The stateful, multi-table cases exercise the <strong>agent loop + SessionCache</strong> —
   turning "it felt better" into a number on the work the harness is actually for.</li>
 </ul>

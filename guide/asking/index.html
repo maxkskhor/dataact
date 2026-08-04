@@ -1084,7 +1084,7 @@ more behind one OpenAI-compatible endpoint — ideal for cross-model testing. Se
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="n">ask</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;summarise the data&quot;</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">&quot;deepseek/deepseek-chat&quot;</span><span class="p">)</span>  <span class="c1"># cheap</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># or construct it directly:</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.providers.openai</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenRouterAdapter</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.llm.providers.openai</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenRouterAdapter</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">ask</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">adapter</span><span class="o">=</span><span class="n">OpenRouterAdapter</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;openai/gpt-4o-mini&quot;</span><span class="p">))</span>
 </code></pre></div>
 <p>DeepSeek's own (very cheap) API works directly too — set <code>DEEPSEEK_API_KEY</code> and
@@ -1106,7 +1106,7 @@ to opt in.</p>
 <h2 id="charts">Charts</h2>
 <p>matplotlib is available inside the interpreter. The model builds a figure and it
 is captured automatically as a <code>ChartArtifact</code>. The image bytes are written to
-disk and <strong>never</strong> enter the message history or the JSONL log — only a path
+disk and <strong>never</strong> enter the message history or the session log — only a path
 does, exactly like a cache handle. In Jupyter, <code>RunResult</code> and <code>ChartArtifact</code>
 render inline.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">ask</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;Plot revenue by region as a bar chart.&quot;</span><span class="p">)</span>
@@ -1120,8 +1120,8 @@ render inline.</p>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">chat</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="s2">&quot;Which month was highest?&quot;</span><span class="p">)</span>   <span class="c1"># remembers context</span>
 </code></pre></div>
 <p><code>SmartFrame(df).chat("...")</code> is a pandasai-style wrapper over the same machinery.
-There is also an opt-in pandas accessor — <code>import data_harness.pandas</code> then
-<code>df.chat("...")</code> — and a <code>%%ask</code> notebook magic (<code>%load_ext data_harness.notebook</code>).</p>
+There is also an opt-in pandas accessor — <code>import data_harness.app.pandas</code> then
+<code>df.chat("...")</code> — and a <code>%%ask</code> notebook magic (<code>%load_ext data_harness.app.notebook</code>).</p>
 <h2 id="sql">SQL</h2>
 <p>With DuckDB installed, <code>ask</code> exposes a <code>sql_query</code> tool that runs SQL directly
 against your DataFrame handles; results become new handles. Point it at a real

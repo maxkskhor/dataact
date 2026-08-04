@@ -1023,13 +1023,13 @@
 </p>
 
 <p><strong>The controlled data-agent SDK.</strong> Python, not bash. Large data stays in a cache
-as handles, never in the prompt. Every run is logged — and eval-backed.</p>
+as handles, never in the prompt. Every run is recorded as a full session tree — and eval-backed.</p>
 <p>Most data-agent tooling makes you pick between giving a model a <strong>shell</strong>
 (unsafe, irreproducible) and <strong>single-shot code-gen</strong> (no state, no multi-step).
 <code>data-harness</code> is the controlled middle path: the model works through a
 constrained Python interpreter, large objects live in a <code>SessionCache</code> exposed
 as compact handle snapshots (so a 100k-row table never hits the context window),
-every turn is logged to JSONL, and a built-in <a href="guide/evaluation/">evaluation harness</a>
+every run is recorded as an append-only session tree, and a built-in <a href="guide/evaluation/">evaluation harness</a>
 measures quality and cost across providers.</p>
 <hr />
 <h2 id="install">Install</h2>
@@ -1064,7 +1064,7 @@ measures quality and cost across providers.</p>
 <li><strong><a href="guide/evaluation/">Evaluation</a></strong> — programmatic graders, multi-turn cases, cost leaderboards, and tracked results.</li>
 <li><strong><a href="guide/sessions/">Sessions</a></strong> · <strong><a href="guide/connectors/">Connectors</a></strong> · <strong><a href="guide/async/">Async &amp; Streaming</a></strong> — multi-turn state, progressive tools, streaming.</li>
 <li><strong><a href="guide/examples/">Examples</a></strong> — runnable scripts and a demo notebook.</li>
-<li><strong><a href="guide/design/">Architecture</a></strong> — <em>why</em> the harness is built this way (no bash, handle/snapshot, prefix-stable prompt, subagents, JSONL logs).</li>
+<li><strong><a href="guide/design/">Architecture</a></strong> — <em>why</em> the harness is built this way (no bash, handle/snapshot, prefix-stable prompt, subagents, the session tree).</li>
 </ul>
 <hr />
 <h2 id="design-series">Design series</h2>

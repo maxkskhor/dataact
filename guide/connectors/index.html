@@ -1054,7 +1054,7 @@ decisions at each turn.</p>
 <hr />
 <h2 id="registering-a-connector">Registering a connector</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.providers.anthropic</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnthropicAdapter</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.llm.providers.anthropic</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnthropicAdapter</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">adapter</span><span class="o">=</span><span class="n">AnthropicAdapter</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;claude-sonnet-4-6&quot;</span><span class="p">),</span>
@@ -1148,8 +1148,8 @@ server into a <code>Harness</code> directly.</p>
 <p><code>Agent.connector()</code> is a convenience layer. For full control, use
 <code>ConnectorRegistry</code> and <code>ToolSpec</code> directly — as shown in
 <code>examples/advanced_wiring.py</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.tools.connectors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectorRegistry</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolSpec</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.data.tools.connectors</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConnectorRegistry</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.llm.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolSpec</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">registry</span> <span class="o">=</span> <span class="n">ConnectorRegistry</span><span class="p">()</span>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>

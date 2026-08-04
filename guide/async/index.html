@@ -1043,7 +1043,7 @@ and token-level streaming. They mirror the synchronous API exactly, with
 <h2 id="asyncagent">AsyncAgent</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncAgent</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.providers.anthropic</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnthropicAdapter</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.llm.providers.anthropic</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnthropicAdapter</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">agent</span> <span class="o">=</span> <span class="n">AsyncAgent</span><span class="p">(</span>
@@ -1146,8 +1146,8 @@ emit it.</p>
 <p>Override <code>stream_events()</code> in your <code>AsyncProviderAdapter</code> to emit real
 token-level events. The default implementation calls <code>chat()</code> and synthesises
 the standard event sequence from the assembled response:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.providers.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncProviderAdapter</span><span class="p">,</span> <span class="n">NormalizedResponse</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.streaming</span><span class="w"> </span><span class="kn">import</span> <span class="n">StreamEvent</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.llm.providers.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncProviderAdapter</span><span class="p">,</span> <span class="n">NormalizedResponse</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.llm.streaming</span><span class="w"> </span><span class="kn">import</span> <span class="n">StreamEvent</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncGenerator</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyAdapter</span><span class="p">(</span><span class="n">AsyncProviderAdapter</span><span class="p">):</span>
