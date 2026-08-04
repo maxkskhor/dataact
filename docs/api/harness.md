@@ -8,7 +8,7 @@ wiring — see `examples/advanced_wiring.py` for a complete example.
 
 ## Harness
 
-::: data_harness.loop.Harness
+::: data_harness.data.harness.Harness
 
 ---
 

@@ -33,8 +33,8 @@ normalised types. The harness never imports provider SDK classes directly.
 
 ### AnthropicAdapter
 
-::: data_harness.providers.anthropic.AnthropicAdapter
+::: data_harness.llm.providers.anthropic.AnthropicAdapter
 
 ### OpenAIAdapter
 
-::: data_harness.providers.openai.OpenAIAdapter
+::: data_harness.llm.providers.openai.OpenAIAdapter

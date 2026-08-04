@@ -6,4 +6,4 @@ handles through the Python interpreter.
 
 ---
 
-::: data_harness.cache.SessionCache
+::: data_harness.data.cache.SessionCache
