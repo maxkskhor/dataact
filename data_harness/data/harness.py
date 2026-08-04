@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from data_harness.core.compaction import Compactor
 from data_harness.core.hooks import HookRegistry
 from data_harness.core.loop import (
     Answer,
@@ -71,6 +72,7 @@ class Harness(_CoreHarness):
         code_only: bool = False,
         session: Session | None = None,
         hooks: HookRegistry | None = None,
+        compactor: Compactor | None = None,
     ) -> None:
         super().__init__(
             adapter=adapter,
@@ -83,6 +85,7 @@ class Harness(_CoreHarness):
             code_only=code_only,
             session=session,
             hooks=hooks,
+            compactor=compactor,
         )
 
     @property
@@ -109,6 +112,7 @@ class AsyncHarness(_CoreAsyncHarness):
         code_only: bool = False,
         session: Session | None = None,
         hooks: HookRegistry | None = None,
+        compactor: Compactor | None = None,
     ) -> None:
         super().__init__(
             adapter=adapter,
@@ -121,6 +125,7 @@ class AsyncHarness(_CoreAsyncHarness):
             code_only=code_only,
             session=session,
             hooks=hooks,
+            compactor=compactor,
         )
 
     @property

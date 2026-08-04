@@ -23,6 +23,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, TypeVar
 
+from data_harness.core.exceptions import DataHarnessError
 from data_harness.llm.types import Message, ToolResultBlock
 
 # ── events ──────────────────────────────────────────────────────────────────
@@ -131,8 +132,10 @@ _E = TypeVar("_E", bound=Event)
 _D = TypeVar("_D", bound=Decision)
 
 
-class HookError(Exception):
+class HookError(DataHarnessError):
     """A hook raised. Names the hook and the event so the culprit is obvious."""
+
+    code = "hook_error"
 
     def __init__(self, event: Event, hook: Hook, cause: BaseException) -> None:
         name = getattr(hook, "__qualname__", repr(hook))

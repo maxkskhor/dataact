@@ -30,12 +30,39 @@ from data_harness.app.quickstart import (  # noqa: E402
     resolve_async_adapter,
 )
 from data_harness.core.artifacts import ChartArtifact  # noqa: E402
+from data_harness.core.compaction import (  # noqa: E402
+    CompactionSettings,
+    estimate_tokens,
+    make_compactor,
+)
 from data_harness.core.exceptions import (  # noqa: E402
+    ConfigurationError,
+    DataHarnessError,
+    ExecutionError,
     MaxTurnsExceeded,
+    ProviderError,
     SubagentRecursionError,
     ToolNotFoundError,
 )
+from data_harness.core.hooks import (  # noqa: E402
+    AfterToolCall,
+    AfterTurn,
+    BeforeToolCall,
+    BeforeTurn,
+    Block,
+    HookError,
+    HookRegistry,
+    Reminder,
+    Replace,
+    Stop,
+)
 from data_harness.core.result import CacheStorageInfo, RunResult, Usage  # noqa: E402
+from data_harness.core.session import (  # noqa: E402
+    JsonlSessionStore,
+    MemorySessionStore,
+    Session,
+    SessionStoreError,
+)
 from data_harness.data.exec_cache import ExecutionCache  # noqa: E402
 from data_harness.data.harness import AsyncHarness  # noqa: E402
 from data_harness.data.io import load_dataframe  # noqa: E402
@@ -70,6 +97,25 @@ from data_harness.llm.types import (  # noqa: E402
 )
 
 __all__ = [
+    "Stop",
+    "SessionStoreError",
+    "Session",
+    "Replace",
+    "Reminder",
+    "ProviderError",
+    "MemorySessionStore",
+    "JsonlSessionStore",
+    "HookRegistry",
+    "HookError",
+    "ExecutionError",
+    "DataHarnessError",
+    "ConfigurationError",
+    "CompactionSettings",
+    "Block",
+    "BeforeTurn",
+    "BeforeToolCall",
+    "AfterTurn",
+    "AfterToolCall",
     "Agent",
     "AgentSession",
     "AsyncAgent",
@@ -110,6 +156,8 @@ __all__ = [
     "ToolUseBlock",
     "Usage",
     "ask",
+    "estimate_tokens",
+    "make_compactor",
     "load_dataframe",
     "mcp_tool_specs",
     "resolve_adapter",

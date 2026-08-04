@@ -46,6 +46,7 @@ from contextlib import aclosing
 from dataclasses import dataclass
 from typing import Any, Literal, TypeVar
 
+from data_harness.core.compaction import Compactor
 from data_harness.core.environment import NullEnvironment, RunEnvironment
 from data_harness.core.hooks import (
     AfterToolCall,
@@ -301,6 +302,7 @@ class _HarnessBase:
         code_only: bool = False,
         session: Session | None = None,
         hooks: HookRegistry | None = None,
+        compactor: Compactor | None = None,
     ) -> None:
         if max_turns < 1:
             raise ValueError(f"max_turns must be at least 1, got {max_turns!r}")
@@ -316,6 +318,7 @@ class _HarnessBase:
         if on_code is not None or code_only:
             self._hooks.add(BeforeToolCall, make_code_gate(on_code, code_only))
         self._stop_reason: str | None = None
+        self._compactor = compactor
         # Resuming: a session handed in with history already on it seeds the
         # working copy, so `ask` continues the conversation rather than
         # starting a second one that shares a log with the first.
@@ -515,6 +518,7 @@ class _HarnessBase:
 
         for turn in range(1, self._max_turns + 1):
             self._turns_completed = turn
+            self._compact_if_needed()
             self._apply_reminders(turn)
 
             # A BeforeTurn hook asked to stop, so nothing is spent on this turn.
@@ -768,6 +772,18 @@ class _HarnessBase:
             stopped_by=stopped_by,
         )
 
+    def _compact_if_needed(self) -> None:
+        """Let the compactor shrink the context before the next turn.
+
+        The working copy is rebuilt from the session rather than edited, so
+        the conversation the model sees stays derived from the log rather than
+        becoming a second, divergent thing.
+        """
+        if self._compactor is None:
+            return
+        if self._compactor(self._session) is not None:
+            self._messages[:] = self._session.build_context()
+
     def _apply_reminders(self, turn: int) -> None:
         reminder_texts: list[str] = []
 
@@ -858,6 +874,7 @@ class Harness(_HarnessBase):
         code_only: bool = False,
         session: Session | None = None,
         hooks: HookRegistry | None = None,
+        compactor: Compactor | None = None,
     ) -> None:
         super().__init__(
             system=system,
@@ -869,6 +886,7 @@ class Harness(_HarnessBase):
             code_only=code_only,
             session=session,
             hooks=hooks,
+            compactor=compactor,
         )
         self._adapter = adapter
 
@@ -1014,6 +1032,7 @@ class AsyncHarness(_HarnessBase):
         code_only: bool = False,
         session: Session | None = None,
         hooks: HookRegistry | None = None,
+        compactor: Compactor | None = None,
     ) -> None:
         super().__init__(
             system=system,
@@ -1025,6 +1044,7 @@ class AsyncHarness(_HarnessBase):
             code_only=code_only,
             session=session,
             hooks=hooks,
+            compactor=compactor,
         )
         self._adapter = adapter
 

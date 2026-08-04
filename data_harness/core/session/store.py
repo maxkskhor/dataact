@@ -11,19 +11,20 @@ from __future__ import annotations
 import copy
 from typing import Protocol, runtime_checkable
 
+from data_harness.core.exceptions import DataHarnessError
 from data_harness.core.session.entries import Entry, leaf_after
 
 
-class SessionStoreError(Exception):
-    """Raised for a session that cannot be read or is internally inconsistent.
+class SessionStoreError(DataHarnessError):
+    """A session cannot be read, or is internally inconsistent.
 
-    Carries a stable ``code`` so a caller can tell a missing entry from a
-    corrupt file without matching on message text.
+    Codes: ``not_found``, ``invalid_session``, ``invalid_entry``,
+    ``duplicate_entry``, ``missing_parent``, ``cycle``, ``invalid_cut``,
+    ``unserializable_entry``.
     """
 
     def __init__(self, code: str, message: str) -> None:
-        super().__init__(message)
-        self.code = code
+        super().__init__(message, code=code)
 
 
 @runtime_checkable
