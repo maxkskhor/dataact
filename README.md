@@ -24,6 +24,10 @@ Most data-agent tooling makes you pick between giving a model a **shell** (unsaf
 - **Handles, not payloads** — large data lives in the cache; only snapshots reach the model, so context (and cost) stay flat as data grows.
 - **Measured, not vibes** — a first-class eval harness with programmatic graders, multi-turn cases, cost, and tracked leaderboards.
 
+### Live demo
+
+[**data-harness-ui**](https://github.com/maxkskhor/data-harness-ui) is a deployed reference app built on top of this SDK: a Next.js chat workbench over a FastAPI backend, with GitHub OAuth, a per-user monthly budget against a shared key (or bring-your-own-key), CSV upload, and streamed responses with inline chart rendering — all backed by one `AsyncAgentSession` per chat. Try it live at **[data-harness-ui.vercel.app](https://data-harness-ui.vercel.app)**.
+
 ### Features
 
 - **One-liner** — `ask(df, "...")` in Python, or `dh "..." data.csv` from the shell.
@@ -215,6 +219,7 @@ The in-process interpreter uses AST checks and restricted globals to reduce acci
 ## Links
 
 - **Docs:** <https://maxkskhor.github.io/data-harness/>
+- **Live demo:** [data-harness-ui.vercel.app](https://data-harness-ui.vercel.app) ([source](https://github.com/maxkskhor/data-harness-ui))
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 - **Design series:** [three-part write-up](https://maxkskhor.substack.com/p/designing-a-react-harness-for-data)
 - **License:** [MIT](LICENSE)

@@ -55,6 +55,12 @@ dh "What was total revenue?" sales.csv
 
 ---
 
+## Live demo
+
+[**data-harness-ui**](https://github.com/maxkskhor/data-harness-ui) is a deployed reference app built on this SDK — a Next.js chat workbench over a FastAPI backend, with GitHub OAuth, a per-user budget against a shared key (or bring-your-own-key), CSV upload, and streamed responses with inline chart rendering. Try it at **[data-harness-ui.vercel.app](https://data-harness-ui.vercel.app)**.
+
+---
+
 ## What you get
 
 - **[Quickstart](guide/quickstart.md)** — `ask()`, `Chat`, the `dh` CLI, and inspecting results.
