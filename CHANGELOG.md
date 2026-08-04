@@ -1,5 +1,44 @@
 # Changelog
 
+### Unreleased
+
+Structural refactor, taking its shape from the pi agent harness. Every
+previous import path still works, and resolves to the same object rather than
+a copy.
+
+- **Layers.** The package was one flat namespace where the loop constructed a
+  `SessionCache` and called `format_tool_output`. It is now `llm` -> `core` ->
+  `data` -> `app`, each importing only the layers below it, enforced
+  statically by `tests/test_layers.py`. The loop takes a `RunEnvironment`
+  instead of a cache, so `data_harness.core` runs an agent with no pandas
+  anywhere.
+- **One loop.** Four near-copies (sync/async x result/stream) collapsed into
+  one generator driven by two drivers. They had drifted: the streaming copy
+  discarded token usage on provider errors, and `AsyncAgent` was missing
+  `from_dataframe`, subagents, MCP, the replay cache, and the approval gate.
+  The sync driver runs inline, so Ctrl-C lands promptly and a handler holding
+  a `sqlite3` connection still works.
+- **Session tree.** A session is an append-only tree of typed entries and the
+  conversation is *derived* from it, never stored. Brings resume across
+  processes, forking a conversation without losing the original, reversible
+  compaction, and linear rather than quadratic writes.
+- **Hooks.** `BeforeTurn`, `BeforeToolCall`, `AfterToolCall`, `AfterTurn`,
+  returning `Reminder`, `Block`, `Replace`, or `Stop`. The interpreter
+  approval gate is now built from this mechanism rather than hardcoded inside
+  the dispatcher. `AfterTurn` is where a spend cap belongs.
+- **Compaction.** `max_turns` was a wall, not a strategy. Cuts land on turn
+  boundaries so a tool call is never separated from its result, and nothing is
+  deleted: the summary is an entry, so stepping the leaf back undoes it.
+- **Typed errors.** Every failure carries a stable `code` under a common
+  `DataHarnessError`, so a caller can tell a rate-limited provider from a bug
+  in the model's code from a sandbox timeout. Existing base classes are kept,
+  so code catching `RuntimeError`/`ValueError` still works.
+- `RunResult` gains `stopped_by`; `Agent` gains `last_result` and `hooks`;
+  `resolve_async_adapter` mirrors `resolve_adapter`.
+
+913 tests, up from 547.
+
+
 ### 0.13.0
 - **MCP bridge** (`[mcp]` extra): data-harness is now an MCP client. `Agent.add_mcp_server(name, command, args=...)` connects any stdio [MCP](https://modelcontextprotocol.io) server and exposes its tools as a connector — hidden until `load_connectors`, with large results routed through the `SessionCache`. Swap the command for a Postgres/SQLite/filesystem server; no per-source code.
 - `MCPClient` / `MCPServer` / `mcp_tool_specs` exported for wiring MCP into a `Harness` directly; `Agent.close()` shuts servers down. `examples/mcp_demo.py` shows it live against `mcp-server-time`.

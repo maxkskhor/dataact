@@ -430,8 +430,13 @@ def test_looking_up_the_ambient_loop_does_not_create_one():
     probe = textwrap.dedent(
         """
         import asyncio, sys
-        policy = asyncio.get_event_loop_policy()
-        assert policy._local._set_called is False, "process was not pristine"
+
+        if sys.version_info < (3, 14):
+            # Guard the guard: on these versions get_event_loop() only creates
+            # a loop while this flag is False, so a process where something
+            # already set a loop would pass against the bug.
+            policy = asyncio.get_event_loop_policy()
+            assert policy._local._set_called is False, "process was not pristine"
 
         from data_harness.core.loop import _ambient_event_loop, run_coroutine_blocking
 
@@ -729,6 +734,14 @@ async def test_a_replay_hit_is_readable_through_last_result(tmp_path):
     assert fresh.last_result.text == "The answer is 6"
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 14),
+    reason=(
+        "Event loop policies are deprecated from 3.14 and removed in 3.16. "
+        "_ambient_event_loop takes the get_event_loop() branch there, which "
+        "cannot create a loop, so there is no unreadable case to handle."
+    ),
+)
 def test_an_unreadable_ambient_loop_leaves_no_closed_loop_behind():
     """Under a policy we cannot introspect, don't guess and don't poison.
 

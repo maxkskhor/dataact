@@ -5,6 +5,123 @@ exist. Understanding them makes the API surface predictable.
 
 ---
 
+## Layers
+
+The package is layered, bottom up. A layer may import the ones below it and
+none above; `tests/test_layers.py` enforces that statically.
+
+```
+data_harness/
+  llm/    provider adapters and the wire types they speak
+  core/   the loop, the session tree, RunResult, hooks, compaction
+  data/   the session cache, interpreter, SQL, connectors, MCP
+  app/    Agent, ask(), the CLI
+```
+
+The boundary that matters is `core` not knowing what a DataFrame is. The loop
+takes a `RunEnvironment` supplying two things it cannot decide for itself: how
+to render a tool's return value, and what the run's final state was. The data
+layer's implementation is backed by the `SessionCache`; `NullEnvironment` is
+the domain-free default. That is why the harness can be read, tested, and
+reused without pandas.
+
+Every pre-layering import path (`data_harness.loop`, `data_harness.types`, …)
+still resolves, to the same module object rather than a copy.
+
+---
+
+## One loop, two drivers
+
+`_HarnessBase._plan` is the only ReAct loop. It is a generator that owns every
+decision in a turn and performs no network I/O: it *asks* for I/O by yielding
+`CallProvider`, `CallTool`, or `ToolFinished`, and the driver answers with
+`Ok(value)` or `Failed(exc)`.
+
+- `Harness` performs those inline on the calling thread. No event loop is
+  created, so Ctrl-C lands promptly and a tool handler keeps its thread
+  affinity: a `sqlite3` connection opened at setup still works.
+- `AsyncHarness` awaits the provider and offloads blocking handlers to a
+  worker thread, so a long pandas call cannot stall a shared event loop.
+
+There used to be four near-copies of this loop (sync/async x result/stream).
+They had drifted: the streaming copy discarded token usage on provider errors,
+and `AsyncAgent` was missing eight features `Agent` had.
+
+---
+
+## The session tree
+
+A session is an append-only tree of typed entries, each naming its parent,
+with a movable leaf. **The conversation the model sees is derived by walking
+root to leaf, and is never stored**, so there is no second copy to disagree
+with the log.
+
+Everything else follows from that:
+
+- **Resume** — reopen a session file in another process and carry on.
+- **Forking** — move the leaf and append; both branches survive, so a turn can
+  be retried with a different model without destroying the first attempt.
+- **Compaction is an entry, not an edit.** The compacted turns stay in the
+  tree; moving the leaf back restores them.
+- Writing is one line per entry, where the older `runs/*.jsonl` turn log
+  re-serialises the whole history every turn.
+
+A derived context is always something a provider will accept: a tool call with
+no result, or a result with no call, is dropped. Both are reachable without a
+bug, because a run killed mid-tool leaves an orphaned call on disk.
+
+---
+
+## Hooks
+
+Four events, each with a decision a hook may return:
+
+```
+BeforeTurn     -> Reminder(text) | Stop(reason)
+BeforeToolCall -> Block(reason, is_error)
+AfterToolCall  -> Replace(content, is_error)
+AfterTurn      -> Stop(reason)
+```
+
+The interpreter approval gate is built from exactly this mechanism rather than
+being special-cased inside the loop, which is the evidence that the mechanism
+is sufficient. `AfterTurn` is where a spend cap belongs: the tokens are already
+counted, so the decision is made on real numbers.
+
+Hooks must not raise. One that does is reported as `HookError`, and the run
+fails with its usage intact rather than vanishing.
+
+---
+
+## Compaction
+
+`max_turns` is a wall, not a strategy: a run needing thirty turns fails at
+twenty-five having paid for all of them. Compaction summarises older turns and
+replays the summary in their place.
+
+The cut always lands on a turn boundary, so an assistant tool call is never
+separated from the result answering it. When there is nowhere safe to cut,
+nothing is cut.
+
+Compaction costs this library less than it costs a coding agent: the data
+lives in the cache under handles, not in the transcript, so compacting away
+the turn that loaded a DataFrame loses the discussion of it, not the frame.
+
+---
+
+## Errors
+
+Every failure carries a stable `code`, because a caller deciding between
+retrying, showing the user an error, and billing the attempt needs to tell a
+rate-limited provider from a typo in the model's pandas from a sandbox
+timeout. Codes are API; messages are not.
+
+`ExecutionError` means the code never ran (timeout, killed process).
+`PythonInterpreterError` means it ran and failed, which is the model's problem
+and is handed back to it as a tool result.
+
+---
+
 ## No bash
 
 Giving an agent shell access is the path of least resistance, but it creates
