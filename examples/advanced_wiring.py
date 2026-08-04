@@ -85,7 +85,7 @@ def main() -> None:
         print("ANTHROPIC_API_KEY not set. Skipping live demo.")
         sys.exit(0)
 
-    from data_harness.llm.providers.anthropic import AnthropicAdapter
+    from data_harness.app.quickstart import resolve_adapter
 
     session_cache = SessionCache(sample_size=5)
 
@@ -93,9 +93,12 @@ def main() -> None:
     planner = Planner()
     planner_specs = planner.make_tool_specs()
 
-    # Subagent
+    # Subagent — cheap model, small max_tokens for a worker that only needs
+    # to answer one focused question. resolve_adapter() routes the model name
+    # to the right provider class and forwards max_tokens to its constructor,
+    # so nothing here has to import a provider-specific adapter.
     def adapter_factory():
-        return AnthropicAdapter(model="claude-haiku-4-5-20251001", max_tokens=2048)
+        return resolve_adapter("claude-haiku-4-5-20251001", max_tokens=2048)
 
     base_tools = build_base_tools(session_cache)
     all_tools = base_tools + planner_specs
@@ -109,7 +112,7 @@ def main() -> None:
     all_tools.append(subagent_spec)
 
     # Main adapter
-    adapter = AnthropicAdapter(model="claude-sonnet-4-6", max_tokens=4096)
+    adapter = resolve_adapter("claude-sonnet-4-6", max_tokens=4096)
 
     harness = Harness(
         adapter=adapter,

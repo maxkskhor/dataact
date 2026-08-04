@@ -100,7 +100,7 @@ def _route(model: str | None) -> tuple[str, str]:
     )
 
 
-def _build_adapter(model: str | None, *, is_async: bool) -> Any:
+def _build_adapter(model: str | None, *, is_async: bool, **kwargs: Any) -> Any:
     provider, model_id = _route(model)
     sync_name, async_name, extra = _ADAPTER_CLASSES[provider]
     module_name = (
@@ -120,10 +120,10 @@ def _build_adapter(model: str | None, *, is_async: bool) -> Any:
             f"'data-harness[{extra}]'."
         ) from exc
     cls = getattr(module, async_name if is_async else sync_name)
-    return cls(model=model_id)
+    return cls(model=model_id, **kwargs)
 
 
-def resolve_adapter(model: str | None = None) -> ProviderAdapter:
+def resolve_adapter(model: str | None = None, **kwargs: Any) -> ProviderAdapter:
     """Resolve a `ProviderAdapter` from an explicit model or the environment.
 
     With no ``model``, prefers ``ANTHROPIC_API_KEY``, then ``OPENAI_API_KEY``,
@@ -132,22 +132,31 @@ def resolve_adapter(model: str | None = None) -> ProviderAdapter:
     ``deepseek*`` to DeepSeek's direct API, ``gpt*``/``o*`` to OpenAI, otherwise
     Anthropic.
 
+    Args:
+        model: Explicit model id, or ``None`` to pick from the environment.
+        **kwargs: Forwarded to the resolved adapter class's constructor, e.g.
+            ``max_tokens=2048``.
+
     Raises:
         RuntimeError: If no provider can be resolved (no key, no model).
     """
-    return _build_adapter(model, is_async=False)
+    return _build_adapter(model, is_async=False, **kwargs)
 
 
-def resolve_async_adapter(model: str | None = None) -> AsyncProviderAdapter:
+def resolve_async_adapter(
+    model: str | None = None, **kwargs: Any
+) -> AsyncProviderAdapter:
     """Resolve an `AsyncProviderAdapter` using the same routing as `resolve_adapter`.
 
     Args:
         model: Explicit model id, or ``None`` to pick from the environment.
+        **kwargs: Forwarded to the resolved adapter class's constructor, e.g.
+            ``max_tokens=2048``.
 
     Raises:
         RuntimeError: If no provider can be resolved (no key, no model).
     """
-    return _build_adapter(model, is_async=True)
+    return _build_adapter(model, is_async=True, **kwargs)
 
 
 def _build_agent(

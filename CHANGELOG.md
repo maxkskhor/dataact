@@ -1,5 +1,16 @@
 # Changelog
 
+### 1.3.1
+
+- **`resolve_adapter`/`resolve_async_adapter` forward extra keyword arguments**
+  to the adapter class they resolve to, e.g. `resolve_adapter("claude-haiku-4-5-20251001", max_tokens=2048)`.
+  Previously they only accepted `model`, so tuning anything else (`max_tokens`,
+  ...) meant importing the specific provider class by hand — exactly the
+  "why do I need to write different adaptors" friction from 1.1.0's provider
+  registry, just one layer up. `examples/advanced_wiring.py` and
+  `examples/quickstart.py` updated to use `resolve_adapter`/`Agent(model=...)`
+  instead of manually importing `AnthropicAdapter`.
+
 ### 1.3.0
 
 - **No more `**kwargs` in the public constructors.** `Agent.__init__`,

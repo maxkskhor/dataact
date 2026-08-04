@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from data_harness import Chat, SmartFrame, ask
-from data_harness.app.quickstart import resolve_adapter
+from data_harness.app.quickstart import resolve_adapter, resolve_async_adapter
 from data_harness.data.io import load_dataframe, sanitise_handle, to_handles
 from data_harness.llm.testing import FakeAdapter
 
@@ -76,6 +76,19 @@ def test_resolve_adapter_falls_back_to_openrouter(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     assert isinstance(resolve_adapter(), OpenRouterAdapter)
+
+
+def test_resolve_adapter_forwards_kwargs_to_the_adapter_class(monkeypatch):
+    """resolve_adapter(model, max_tokens=...) needs no provider-specific import."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    adapter = resolve_adapter("claude-haiku-4-5-20251001", max_tokens=2048)
+    assert adapter._max_tokens == 2048
+
+
+def test_resolve_async_adapter_forwards_kwargs_to_the_adapter_class(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    adapter = resolve_async_adapter("claude-haiku-4-5-20251001", max_tokens=2048)
+    assert adapter._max_tokens == 2048
 
 
 def test_openrouter_adapter_uses_env_key(monkeypatch):
