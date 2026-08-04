@@ -740,26 +740,27 @@ def test_compacting_from_an_entry_off_the_path_is_rejected(store):
 def test_stacked_compactions_leave_one_summary_in_order(store):
     """An older compaction inside the kept tail must not be replayed.
 
-    Doing so emitted the older summary *after* the newer one and resurrected
-    the very entries the older one had dropped.
+    The kept tail deliberately starts *before* the first compaction, so the
+    first compaction sits inside it. Replaying it emitted the older summary
+    after the newer one and resurrected the entries it had dropped.
     """
     session = Session(store)
     session.append_message(say("q1"))
-    session.append_message(say("a1", "assistant"))
+    keep = session.append_message(say("a1", "assistant"))
     session.append_compaction(
         "first summary", first_kept_entry_id=None, tokens_before=1
     )
-    keep = session.append_message(say("q2"))
+    session.append_message(say("q2"))
     session.append_compaction(
         "second summary", first_kept_entry_id=keep, tokens_before=2
     )
     session.append_message(say("q3"))
 
     context = texts(session.build_context())
-    assert sum("summary" in c for c in context) == 1
+    assert sum("summary" in c for c in context) == 1, context
     assert "second summary" in context[0]
-    assert "q1" not in context and "a1" not in context
-    assert context[1:] == ["q2", "q3"]
+    assert "first summary" not in " ".join(context)
+    assert context[1:] == ["a1", "q2", "q3"]
 
 
 # ── the working copy and the log agree ──────────────────────────────────────
@@ -835,5 +836,11 @@ def test_both_stores_agree_after_a_message_is_mutated(tmp_path):
 
     message.content.append(TextBlock(text="added later"))
 
-    assert texts(memory.build_context()) == ["original"]
-    assert texts(on_disk.build_context()) == ["original"]
+    # Compare every block, not just the first: the earlier version of this
+    # test used a helper that read `content[0]` and so could not see an
+    # appended block at all.
+    def blocks(session):
+        return [[b.text for b in m.content] for m in session.build_context()]
+
+    assert blocks(memory) == [["original"]]
+    assert blocks(on_disk) == [["original"]]

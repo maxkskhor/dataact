@@ -13,6 +13,7 @@ compactness does.
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import json
 from pathlib import Path
@@ -232,6 +233,14 @@ class JsonlSessionStore:
         return self._leaf_id
 
     def append(self, entry: Entry) -> None:
+        """Write ``entry`` to the file and keep a snapshot of it in memory.
+
+        The in-memory copy has to be a copy for the same reason the file does:
+        the line on disk is frozen at write time, so retaining the caller's
+        object would let a later mutation make this store's live view disagree
+        with its own file. Reading the session back would then show something
+        different from reading it now.
+        """
         if entry.id in self._by_id:
             raise SessionStoreError(
                 "duplicate_entry", f"Entry {entry.id} already exists"
@@ -250,6 +259,7 @@ class JsonlSessionStore:
             ) from exc
         with self._path.open("a") as handle:
             handle.write(line + "\n")
+        entry = copy.deepcopy(entry)
         self._entries.append(entry)
         self._by_id[entry.id] = entry
         self._leaf_id = leaf_after(entry)
