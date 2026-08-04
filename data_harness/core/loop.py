@@ -50,6 +50,7 @@ from data_harness.core.environment import NullEnvironment, RunEnvironment
 from data_harness.core.logger import log_error_turn, log_turn, setup_logger
 from data_harness.core.observe import time_block
 from data_harness.core.result import RunResult, Usage, unwrap_text
+from data_harness.core.session import Session
 from data_harness.llm.providers.base import (
     AsyncProviderAdapter,
     NormalizedResponse,
@@ -273,6 +274,7 @@ class _HarnessBase:
         environment: RunEnvironment | None = None,
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
+        session: Session | None = None,
     ) -> None:
         if max_turns < 1:
             raise ValueError(f"max_turns must be at least 1, got {max_turns!r}")
@@ -283,7 +285,11 @@ class _HarnessBase:
         self._environment = (
             environment if environment is not None else NullEnvironment()
         )
-        self._messages: list[Message] = []
+        self._session = session if session is not None else Session()
+        # Resuming: a session handed in with history already on it seeds the
+        # working copy, so `ask` continues the conversation rather than
+        # starting a second one that shares a log with the first.
+        self._messages: list[Message] = self._session.build_context()
         self._reminders: list[Callable[[int, int], str | None]] = []
         self._run_file: str | None = None
         self._on_code = on_code
@@ -344,6 +350,16 @@ class _HarnessBase:
         return self._environment
 
     @property
+    def session(self) -> Session:
+        """The durable record of this harness's runs.
+
+        `messages` is the working copy the loop mutates in flight; the session
+        is the append-only log it is derived from. They agree at every turn
+        boundary, which `tests/test_session_tree.py` pins.
+        """
+        return self._session
+
+    @property
     def messages(self) -> list[Message]:
         """The conversation history the model sees. Live and mutable."""
         return self._messages
@@ -355,16 +371,28 @@ class _HarnessBase:
 
     # ── run setup ───────────────────────────────────────────────────────────
 
+    def _record(self, message: Message) -> Message:
+        """Append ``message`` to the working copy and to the session log.
+
+        The session holds the same object, not a copy. That is deliberate: a
+        reminder appended to the last user message before a turn is part of
+        what the model was actually sent, so the log should show it. It also
+        means a caller that mutates `messages` rewrites history, which is why
+        `messages` is documented as the loop's own working copy.
+        """
+        self._messages.append(message)
+        self._session.append_message(message)
+        return message
+
     def _begin_run(self, user_message: str) -> None:
         self._run_file = setup_logger(self._run_dir)
-        self._messages = [Message(role="user", content=[TextBlock(text=user_message)])]
+        self._messages = []
+        self._record(Message(role="user", content=[TextBlock(text=user_message)]))
 
     def _begin_ask(self, user_message: str) -> None:
         if self._run_file is None:
             self._run_file = setup_logger(self._run_dir)
-        self._messages.append(
-            Message(role="user", content=[TextBlock(text=user_message)])
-        )
+        self._record(Message(role="user", content=[TextBlock(text=user_message)]))
 
     def _stamp(
         self, result: RunResult, run_id: str | None, session_id: str | None
@@ -460,7 +488,7 @@ class _HarnessBase:
             # what it spent; the generator's local is gone by then.
             self._usage_so_far = total_usage
 
-            self._messages.append(Message(role="assistant", content=response.content))
+            self._record(Message(role="assistant", content=response.content))
 
             tool_results: list[ToolResultBlock] = []
 
@@ -471,7 +499,19 @@ class _HarnessBase:
                 tool_results = [block for _, block in finished]
                 for tool_name, block in finished:
                     yield ToolFinished(tool_name=tool_name, block=block)
-                self._messages.append(Message(role="user", content=list(tool_results)))
+                self._record(Message(role="user", content=list(tool_results)))
+
+            self._session.append_turn(
+                turn=turn,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
+                cache_read_tokens=response.cache_read_tokens,
+                cache_write_tokens=response.cache_write_tokens,
+                latency_ms=latency,
+                stop_reason=response.stop_reason.value,
+                tool_error_count=sum(1 for r in tool_results if r.is_error),
+                visible_tools=[t.name for t in visible_tools],
+            )
 
             log_turn(
                 turn=turn,
@@ -643,7 +683,7 @@ class _HarnessBase:
         if self._messages and self._messages[-1].role == "user":
             self._messages[-1].content.append(reminder_block)
         else:
-            self._messages.append(Message(role="user", content=[reminder_block]))
+            self._record(Message(role="user", content=[reminder_block]))
 
 
 class Harness(_HarnessBase):
@@ -695,6 +735,7 @@ class Harness(_HarnessBase):
         environment: RunEnvironment | None = None,
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
+        session: Session | None = None,
     ) -> None:
         super().__init__(
             system=system,
@@ -704,6 +745,7 @@ class Harness(_HarnessBase):
             environment=environment,
             on_code=on_code,
             code_only=code_only,
+            session=session,
         )
         self._adapter = adapter
 
@@ -847,6 +889,7 @@ class AsyncHarness(_HarnessBase):
         environment: RunEnvironment | None = None,
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
+        session: Session | None = None,
     ) -> None:
         super().__init__(
             system=system,
@@ -856,6 +899,7 @@ class AsyncHarness(_HarnessBase):
             environment=environment,
             on_code=on_code,
             code_only=code_only,
+            session=session,
         )
         self._adapter = adapter
 

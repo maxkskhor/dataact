@@ -29,6 +29,7 @@ from data_harness.core.loop import (
 from data_harness.core.loop import (
     Harness as _CoreHarness,
 )
+from data_harness.core.session import Session
 from data_harness.data.cache import SessionCache
 from data_harness.data.environment import CacheEnvironment
 from data_harness.llm.providers.base import AsyncProviderAdapter, ProviderAdapter
@@ -49,6 +50,8 @@ class Harness(_CoreHarness):
         max_turns: Hard cap on provider turns.
         run_dir: Directory where JSONL logs are written.
         cache: Shared `SessionCache`. A fresh one is created if ``None``.
+        session: Durable record of the run. Pass one opened from storage
+            to resume a conversation across processes.
         on_code: Approval gate called with interpreter code before it runs.
         code_only: When ``True``, interpreter code is echoed, never executed.
     """
@@ -63,6 +66,7 @@ class Harness(_CoreHarness):
         cache: SessionCache | None = None,
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
+        session: Session | None = None,
     ) -> None:
         super().__init__(
             adapter=adapter,
@@ -73,6 +77,7 @@ class Harness(_CoreHarness):
             environment=_environment_for(cache),
             on_code=on_code,
             code_only=code_only,
+            session=session,
         )
 
     @property
@@ -97,6 +102,7 @@ class AsyncHarness(_CoreAsyncHarness):
         cache: SessionCache | None = None,
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
+        session: Session | None = None,
     ) -> None:
         super().__init__(
             adapter=adapter,
@@ -107,6 +113,7 @@ class AsyncHarness(_CoreAsyncHarness):
             environment=_environment_for(cache),
             on_code=on_code,
             code_only=code_only,
+            session=session,
         )
 
     @property
