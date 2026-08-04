@@ -47,6 +47,18 @@ from dataclasses import dataclass
 from typing import Any, Literal, TypeVar
 
 from data_harness.core.environment import NullEnvironment, RunEnvironment
+from data_harness.core.hooks import (
+    AfterToolCall,
+    AfterTurn,
+    BeforeToolCall,
+    BeforeTurn,
+    Block,
+    Event,
+    HookRegistry,
+    Reminder,
+    Replace,
+    Stop,
+)
 from data_harness.core.logger import log_error_turn, log_turn, setup_logger
 from data_harness.core.observe import time_block
 from data_harness.core.result import RunResult, Usage, unwrap_text
@@ -155,25 +167,37 @@ def _require_answer(effect: Effect, answer: Answer) -> Ok | Failed:
 # ── helpers ─────────────────────────────────────────────────────────────────
 
 
-def _evaluate_code_gate(
-    on_code: Callable[[str], object] | None,
-    code_only: bool,
-    code: str,
-) -> str | None:
-    """Decide whether interpreter ``code`` may run.
+#: The tool the approval gate applies to. Only this one takes free-form code,
+#: so only this one needs approving.
+GATED_TOOL = "python_interpreter"
 
-    Returns a string to short-circuit execution (a dry-run echo or a denial
-    message returned to the model), or ``None`` to proceed.
+
+def make_code_gate(
+    on_code: Callable[[str], object] | None, code_only: bool
+) -> Callable[[BeforeToolCall], Block | None]:
+    """Build the interpreter approval gate as a `BeforeToolCall` hook.
+
+    This used to live inside the tool dispatcher, keyed on the literal tool
+    name, which meant the one general-purpose thing the loop could do about a
+    tool call was available only to this one feature. It is a hook now, so the
+    same mechanism serves budget caps, audit trails, and anything else.
     """
-    if code_only:
-        return f"DRY RUN — code not executed:\n{code}"
-    if on_code is not None:
-        decision = on_code(code)
-        if decision is False:
-            return "Execution blocked by the approval gate."
-        if isinstance(decision, str):
-            return decision
-    return None
+
+    def gate(event: BeforeToolCall) -> Block | None:
+        if event.tool_name != GATED_TOOL:
+            return None
+        code = event.tool_input.get("code", "")
+        if code_only:
+            return Block(f"DRY RUN — code not executed:\n{code}")
+        if on_code is not None:
+            decision = on_code(code)
+            if decision is False:
+                return Block("Execution blocked by the approval gate.")
+            if isinstance(decision, str):
+                return Block(decision)
+        return None
+
+    return gate
 
 
 class _Unreadable(enum.Enum):
@@ -275,6 +299,7 @@ class _HarnessBase:
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
         session: Session | None = None,
+        hooks: HookRegistry | None = None,
     ) -> None:
         if max_turns < 1:
             raise ValueError(f"max_turns must be at least 1, got {max_turns!r}")
@@ -286,6 +311,10 @@ class _HarnessBase:
             environment if environment is not None else NullEnvironment()
         )
         self._session = session if session is not None else Session()
+        self._hooks = hooks if hooks is not None else HookRegistry()
+        if on_code is not None or code_only:
+            self._hooks.add(BeforeToolCall, make_code_gate(on_code, code_only))
+        self._stop_reason: str | None = None
         # Resuming: a session handed in with history already on it seeds the
         # working copy, so `ask` continues the conversation rather than
         # starting a second one that shares a log with the first.
@@ -299,15 +328,25 @@ class _HarnessBase:
         self._usage_so_far = Usage()
 
     def register_reminder(self, hook: Callable[[int, int], str | None]) -> None:
-        """Register a suffix reminder hook called before each provider turn.
+        """Register a suffix reminder called before each provider turn.
 
-        The hook receives ``(current_turn, max_turns)`` and returns a reminder
-        string to append to the conversation suffix, or ``None`` to skip.
+        Kept for the callers that predate hooks. It is a `BeforeTurn` hook
+        returning a `Reminder`, which is the general form and can also refuse
+        a tool call, rewrite a result, or stop the run.
 
         Args:
             hook: Callable with signature ``(turn: int, max_turns: int) -> str | None``.
         """
         self._reminders.append(hook)
+
+    def on(self, event_type: type[Event], hook: Callable[[Any], Any]) -> None:
+        """Register ``hook`` for ``event_type``. See `data_harness.core.hooks`."""
+        self._hooks.add(event_type, hook)
+
+    @property
+    def hooks(self) -> HookRegistry:
+        """The hooks this harness will consult."""
+        return self._hooks
 
     # ── inspection ──────────────────────────────────────────────────────────
     #
@@ -391,6 +430,7 @@ class _HarnessBase:
 
     def _begin_run(self, user_message: str) -> None:
         self._run_file = setup_logger(self._run_dir)
+        self._stop_reason = None
         self._messages = []
         # A fresh run is a fresh conversation, so the session starts a new root
         # rather than hanging it off the previous run's leaf. Without this the
@@ -401,6 +441,7 @@ class _HarnessBase:
         self._record(Message(role="user", content=[TextBlock(text=user_message)]))
 
     def _begin_ask(self, user_message: str) -> None:
+        self._stop_reason = None
         if self._run_file is None:
             self._run_file = setup_logger(self._run_dir)
         self._record(Message(role="user", content=[TextBlock(text=user_message)]))
@@ -458,6 +499,18 @@ class _HarnessBase:
         for turn in range(1, self._max_turns + 1):
             self._turns_completed = turn
             self._apply_reminders(turn)
+
+            # A BeforeTurn hook asked to stop, so nothing is spent on this turn.
+            if self._stop_reason is not None:
+                self._last_result = self._build_result(
+                    text="",
+                    status="success",
+                    turns=turn - 1,
+                    stop_reason=None,
+                    usage=total_usage,
+                    error=None,
+                )
+                return
             visible_tools = [t for t in self._tools if t.visible]
 
             with time_block() as tb:
@@ -506,7 +559,7 @@ class _HarnessBase:
             if response.stop_reason == StopReason.TOOL_USE:
                 # Every tool is dispatched before any result is announced, so a
                 # streaming consumer sees the same ordering it always has.
-                finished = yield from self._dispatch(response.content)
+                finished = yield from self._dispatch(response.content, turn)
                 tool_results = [block for _, block in finished]
                 for tool_name, block in finished:
                     yield ToolFinished(tool_name=tool_name, block=block)
@@ -538,6 +591,32 @@ class _HarnessBase:
                 all_tools=self._tools,
             )
 
+            for decision in self._hooks.emit(
+                AfterTurn(
+                    turn=turn,
+                    max_turns=self._max_turns,
+                    input_tokens=total_usage.input_tokens,
+                    output_tokens=total_usage.output_tokens,
+                    tool_results=tool_results,
+                )
+            ):
+                if isinstance(decision, Stop):
+                    self._stop_reason = decision.reason
+
+            if self._stop_reason is not None:
+                # An AfterTurn hook stopped the run: a spend cap, a policy
+                # check, anything deciding on numbers that only exist once the
+                # turn is accounted for. Whatever the model just said still
+                # stands as the answer.
+                self._last_result = self._build_result(
+                    text=_extract_text(response),
+                    status="success",
+                    turns=turn,
+                    stop_reason=response.stop_reason,
+                    usage=total_usage,
+                )
+                return
+
             if response.stop_reason != StopReason.TOOL_USE:
                 self._last_result = self._build_result(
                     text=_extract_text(response),
@@ -559,7 +638,7 @@ class _HarnessBase:
                 return
 
     def _dispatch(
-        self, content: list
+        self, content: list, turn: int
     ) -> Generator[Effect, Any, list[tuple[str, ToolResultBlock]]]:
         """Turn the assistant's tool-use blocks into result blocks, in order."""
         tool_map = {t.name: t for t in self._tools}
@@ -580,22 +659,24 @@ class _HarnessBase:
                 )
                 continue
 
-            if tub.tool_name == "python_interpreter":
-                gate = _evaluate_code_gate(
-                    self._on_code, self._code_only, tub.tool_input.get("code", "")
-                )
-                if gate is not None:
-                    finished.append(
-                        (
-                            tub.tool_name,
-                            ToolResultBlock(
-                                tool_use_id=tub.tool_use_id,
-                                content=gate,
-                                is_error=False,
-                            ),
-                        )
+            blocked = self._hooks.first(
+                BeforeToolCall(
+                    turn=turn, tool_name=tub.tool_name, tool_input=tub.tool_input
+                ),
+                Block,
+            )
+            if blocked is not None:
+                finished.append(
+                    (
+                        tub.tool_name,
+                        ToolResultBlock(
+                            tool_use_id=tub.tool_use_id,
+                            content=blocked.reason,
+                            is_error=blocked.is_error,
+                        ),
                     )
-                    continue
+                )
+                continue
 
             request = CallTool(
                 tool_use_id=tub.tool_use_id,
@@ -633,16 +714,25 @@ class _HarnessBase:
                 )
                 continue
 
-            finished.append(
-                (
-                    tub.tool_name,
-                    ToolResultBlock(
-                        tool_use_id=tub.tool_use_id,
-                        content=output,
-                        is_error=False,
-                    ),
-                )
+            block = ToolResultBlock(
+                tool_use_id=tub.tool_use_id, content=output, is_error=False
             )
+            replacement = self._hooks.first(
+                AfterToolCall(
+                    turn=turn,
+                    tool_name=tub.tool_name,
+                    tool_input=tub.tool_input,
+                    result=block,
+                ),
+                Replace,
+            )
+            if replacement is not None:
+                block = ToolResultBlock(
+                    tool_use_id=tub.tool_use_id,
+                    content=replacement.content,
+                    is_error=replacement.is_error,
+                )
+            finished.append((tub.tool_name, block))
 
         return finished
 
@@ -680,6 +770,14 @@ class _HarnessBase:
             text = hook(turn, self._max_turns)
             if text:
                 reminder_texts.append(text)
+
+        for decision in self._hooks.emit(
+            BeforeTurn(turn=turn, max_turns=self._max_turns, messages=self._messages)
+        ):
+            if isinstance(decision, Reminder):
+                reminder_texts.append(decision.text)
+            elif isinstance(decision, Stop):
+                self._stop_reason = decision.reason
 
         # Built-in max-turn reminder
         if turn == self._max_turns - 1:
@@ -754,6 +852,7 @@ class Harness(_HarnessBase):
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
         session: Session | None = None,
+        hooks: HookRegistry | None = None,
     ) -> None:
         super().__init__(
             system=system,
@@ -764,6 +863,7 @@ class Harness(_HarnessBase):
             on_code=on_code,
             code_only=code_only,
             session=session,
+            hooks=hooks,
         )
         self._adapter = adapter
 
@@ -908,6 +1008,7 @@ class AsyncHarness(_HarnessBase):
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
         session: Session | None = None,
+        hooks: HookRegistry | None = None,
     ) -> None:
         super().__init__(
             system=system,
@@ -918,6 +1019,7 @@ class AsyncHarness(_HarnessBase):
             on_code=on_code,
             code_only=code_only,
             session=session,
+            hooks=hooks,
         )
         self._adapter = adapter
 

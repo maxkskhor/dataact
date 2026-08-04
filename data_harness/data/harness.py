@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from data_harness.core.hooks import HookRegistry
 from data_harness.core.loop import (
     Answer,
     CallProvider,
@@ -52,6 +53,8 @@ class Harness(_CoreHarness):
         cache: Shared `SessionCache`. A fresh one is created if ``None``.
         session: Durable record of the run. Pass one opened from storage
             to resume a conversation across processes.
+        hooks: Pre-built `HookRegistry`, so an application can define its
+            policy once and reuse it across harnesses.
         on_code: Approval gate called with interpreter code before it runs.
         code_only: When ``True``, interpreter code is echoed, never executed.
     """
@@ -67,6 +70,7 @@ class Harness(_CoreHarness):
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
         session: Session | None = None,
+        hooks: HookRegistry | None = None,
     ) -> None:
         super().__init__(
             adapter=adapter,
@@ -78,6 +82,7 @@ class Harness(_CoreHarness):
             on_code=on_code,
             code_only=code_only,
             session=session,
+            hooks=hooks,
         )
 
     @property
@@ -103,6 +108,7 @@ class AsyncHarness(_CoreAsyncHarness):
         on_code: Callable[[str], object] | None = None,
         code_only: bool = False,
         session: Session | None = None,
+        hooks: HookRegistry | None = None,
     ) -> None:
         super().__init__(
             adapter=adapter,
@@ -114,6 +120,7 @@ class AsyncHarness(_CoreAsyncHarness):
             on_code=on_code,
             code_only=code_only,
             session=session,
+            hooks=hooks,
         )
 
     @property
