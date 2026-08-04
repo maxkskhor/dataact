@@ -354,8 +354,13 @@ class _HarnessBase:
         """The durable record of this harness's runs.
 
         `messages` is the working copy the loop mutates in flight; the session
-        is the append-only log it is derived from. They agree at every turn
-        boundary, which `tests/test_session_tree.py` pins.
+        is the append-only log. `session.build_context()` equals `messages`
+        after any run, which `tests/test_session_tree.py` pins for single runs,
+        repeated runs, asks, and streamed runs.
+
+        The one thing the log holds separately is a reminder appended to an
+        already-recorded message: entries are immutable, so it becomes its own
+        ``reminder`` entry rather than retroactively editing history.
         """
         return self._session
 
@@ -387,6 +392,12 @@ class _HarnessBase:
     def _begin_run(self, user_message: str) -> None:
         self._run_file = setup_logger(self._run_dir)
         self._messages = []
+        # A fresh run is a fresh conversation, so the session starts a new root
+        # rather than hanging it off the previous run's leaf. Without this the
+        # log claims a continuity the model was never shown, and
+        # `build_context()` stops matching `messages`.
+        if self._session.leaf_id is not None:
+            self._session.move_to(None)
         self._record(Message(role="user", content=[TextBlock(text=user_message)]))
 
     def _begin_ask(self, user_message: str) -> None:
@@ -682,6 +693,13 @@ class _HarnessBase:
         # Append to existing user message or create a new one
         if self._messages and self._messages[-1].role == "user":
             self._messages[-1].content.append(reminder_block)
+            # The message it was appended to is already in the log, and entries
+            # are immutable, so record the reminder separately. A store that
+            # snapshots on write would otherwise show a prompt the model never
+            # actually saw.
+            self._session.append_custom(
+                "reminder", {"turn": turn, "text": reminder_block.text}
+            )
         else:
             self._record(Message(role="user", content=[reminder_block]))
 

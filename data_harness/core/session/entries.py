@@ -109,7 +109,7 @@ class CustomEntry(BaseEntry):
 
     The extension point that keeps `core` domain-free while letting the data
     layer record what matters to it: a cache handle being written, a chart
-    being produced. `data_harness.data.session` defines those.
+    being produced, a reminder injected into a prompt.
     """
 
     type: Literal["custom"] = "custom"

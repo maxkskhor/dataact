@@ -1,8 +1,10 @@
 """A session persisted as one JSONL file: a header, then one line per entry.
 
 Appending is one line, so writing a session is linear in the number of
-entries. The turn log it replaces re-serialised the whole message history
-every turn, which is quadratic and cannot be read back into a runnable state.
+entries. The older `runs/*.jsonl` turn log re-serialises the whole message
+history every turn, which is quadratic and cannot be read back into anything
+runnable. This store is what replaces it; that log is still written alongside
+for now, so per-turn write cost is unchanged until it is removed.
 
 The format is deliberately boring. A session file is greppable, diffable, and
 recoverable by hand, which matters more for a debugging artefact than
@@ -128,6 +130,8 @@ class JsonlSessionStore:
         self._entries: list[Entry] = []
         self._by_id: dict[str, Entry] = {}
         self._leaf_id: str | None = None
+        #: Set when opening had to drop a torn final entry.
+        self._truncated = False
 
     # ── lifecycle ───────────────────────────────────────────────────────────
 
@@ -175,10 +179,18 @@ class JsonlSessionStore:
             )
 
         store = cls(p, header["id"])
+        last_number = len(lines)
         for number, line in enumerate(lines[1:], start=2):
             try:
                 raw = json.loads(line)
             except json.JSONDecodeError as exc:
+                if number == last_number:
+                    # A crash mid-append leaves a torn final line. This is an
+                    # append-only recovery log: losing the last entry is the
+                    # cost of the crash, but refusing the file would lose every
+                    # entry before it, which is the opposite of the point.
+                    store._truncated = True
+                    break
                 raise SessionStoreError(
                     "invalid_entry", f"{p}:{number} is not valid JSON"
                 ) from exc
@@ -188,9 +200,26 @@ class JsonlSessionStore:
             store._leaf_id = leaf_after(entry)
         return store
 
+    @classmethod
+    def open_or_create(cls, path: str | Path, session_id: str) -> JsonlSessionStore:
+        """Open an existing session, or start one if the file is not there.
+
+        What a restarting process almost always wants. `create` truncates,
+        which on a restart path destroys the very session this store exists to
+        preserve.
+        """
+        if Path(path).exists():
+            return cls.open(path)
+        return cls.create(path, session_id)
+
     @property
     def path(self) -> Path:
         return self._path
+
+    @property
+    def truncated(self) -> bool:
+        """Whether opening the file had to drop a torn final entry."""
+        return self._truncated
 
     # ── SessionStore ────────────────────────────────────────────────────────
 
@@ -212,8 +241,15 @@ class JsonlSessionStore:
                 "missing_parent",
                 f"Entry {entry.id} names unknown parent {entry.parent_id}",
             )
+        try:
+            line = json.dumps(encode_entry(entry))
+        except (TypeError, ValueError) as exc:
+            raise SessionStoreError(
+                "unserializable_entry",
+                f"Entry {entry.id} cannot be written as JSON: {exc}",
+            ) from exc
         with self._path.open("a") as handle:
-            handle.write(json.dumps(encode_entry(entry)) + "\n")
+            handle.write(line + "\n")
         self._entries.append(entry)
         self._by_id[entry.id] = entry
         self._leaf_id = leaf_after(entry)

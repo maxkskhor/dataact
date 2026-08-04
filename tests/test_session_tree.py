@@ -257,8 +257,29 @@ def test_an_entry_naming_an_unknown_parent_is_rejected(store):
     assert excinfo.value.code == "missing_parent"
 
 
-def test_both_stores_satisfy_the_protocol(store):
+def test_both_stores_behave_the_same_way(store):
+    """`isinstance` against a Protocol checks names only, so exercise it.
+
+    A class with every method present and every signature wrong passes
+    `isinstance(..., SessionStore)`, which makes that assertion close to
+    worthless on its own.
+    """
     assert isinstance(store, SessionStore)
+
+    first = MessageEntry(id="e1", parent_id=None, message=say("q1"))
+    second = MessageEntry(id="e2", parent_id="e1", message=say("a1", "assistant"))
+    store.append(first)
+    store.append(second)
+
+    assert store.leaf_id == "e2"
+    assert store.get("e1") == first
+    assert store.get("missing") is None
+    assert [e.id for e in store.entries()] == ["e1", "e2"]
+    assert [e.id for e in store.path_to_root("e2")] == ["e1", "e2"]
+    assert store.path_to_root(None) == []
+
+    store.set_leaf("e1")
+    assert store.leaf_id == "e1"
 
 
 # ── persistence ─────────────────────────────────────────────────────────────
@@ -352,15 +373,74 @@ def test_a_future_format_version_is_rejected_not_guessed(tmp_path):
     assert excinfo.value.code == "invalid_session"
 
 
-def test_a_corrupt_entry_line_names_the_line(tmp_path):
+def test_a_corrupt_entry_in_the_middle_names_the_line(tmp_path):
+    """Corruption anywhere but the tail means the file cannot be trusted."""
     path = tmp_path / "corrupt.jsonl"
+    good = json.dumps(
+        {"type": "message", "id": "a", "parent_id": None, "timestamp": "t"}
+    )
     path.write_text(
-        json.dumps({"type": "session", "version": 1, "id": "x"}) + "\nnot json\n"
+        json.dumps({"type": "session", "version": 1, "id": "x"})
+        + "\nnot json\n"
+        + good
+        + "\n"
     )
     with pytest.raises(SessionStoreError) as excinfo:
         JsonlSessionStore.open(path)
     assert excinfo.value.code == "invalid_entry"
     assert ":2" in str(excinfo.value)
+
+
+def test_a_torn_final_line_costs_one_entry_not_the_file(tmp_path):
+    """A crash mid-append must not make every earlier entry unreadable.
+
+    This is an append-only recovery log. Refusing the whole file because the
+    process died halfway through the last write is the opposite of the point.
+    """
+    path = tmp_path / "torn.jsonl"
+    session = Session(JsonlSessionStore.create(path, "sess"))
+    session.append_message(say("q1"))
+    session.append_message(say("a1", "assistant"))
+
+    with path.open("a") as handle:
+        handle.write('{"type": "message", "id": "hal')  # power cut
+
+    store = JsonlSessionStore.open(path)
+    recovered = Session(store)
+
+    assert store.truncated is True
+    assert texts(recovered.build_context()) == ["q1", "a1"]
+
+
+def test_open_or_create_does_not_destroy_an_existing_session(tmp_path):
+    """`create` truncates, which on a restart path is the worst possible move."""
+    path = tmp_path / "s.jsonl"
+    Session(JsonlSessionStore.create(path, "sess")).append_message(say("q1"))
+
+    reopened = Session(JsonlSessionStore.open_or_create(path, "sess"))
+    assert texts(reopened.build_context()) == ["q1"]
+
+    fresh = Session(JsonlSessionStore.open_or_create(tmp_path / "new.jsonl", "sess2"))
+    assert fresh.build_context() == []
+
+
+def test_an_unserializable_custom_payload_is_a_typed_error(tmp_path):
+    """Every store failure is a SessionStoreError, not a bare TypeError."""
+    session = Session(JsonlSessionStore.create(tmp_path / "s.jsonl", "sess"))
+    with pytest.raises(SessionStoreError) as excinfo:
+        session.append_custom("bad", {"handle": object()})
+    assert excinfo.value.code == "unserializable_entry"
+
+
+def test_a_cycle_in_a_hand_edited_file_is_detected(store):
+    """Unreachable through the API, reachable by editing a file."""
+    from data_harness.core.session.entries import MessageEntry as ME
+
+    store.append(ME(id="a", parent_id=None, message=say("q1")))
+    store._by_id["a"] = ME(id="a", parent_id="a", message=say("q1"))
+    with pytest.raises(SessionStoreError) as excinfo:
+        store.path_to_root("a")
+    assert excinfo.value.code == "cycle"
 
 
 def test_an_unknown_entry_type_is_rejected(tmp_path):
@@ -520,3 +600,240 @@ async def test_a_streamed_run_records_the_same_way(tmp_path):
 
     assert texts(harness.session.build_context()) == ["go", "streamed"]
     assert harness.session.stats().turns == 1
+
+
+# ── the review's surviving mutants ──────────────────────────────────────────
+
+
+def test_message_roles_survive_a_round_trip(tmp_path):
+    """Nothing pinned this, so an encoder writing every role as `user` passed."""
+    path = tmp_path / "s.jsonl"
+    session = Session(JsonlSessionStore.create(path, "sess"))
+    session.append_message(say("q", "user"))
+    session.append_message(say("a", "assistant"))
+    session.append_message(say("q2", "user"))
+
+    roles = [m.role for m in Session(JsonlSessionStore.open(path)).build_context()]
+    assert roles == ["user", "assistant", "user"]
+
+
+def test_a_failed_tool_result_round_trips_as_failed(tmp_path):
+    """`is_error` defaults to False, so asserting False proved nothing."""
+    from data_harness.llm.types import ToolResultBlock, ToolUseBlock
+
+    path = tmp_path / "s.jsonl"
+    session = Session(JsonlSessionStore.create(path, "sess"))
+    session.append_message(
+        Message(
+            role="assistant",
+            content=[ToolUseBlock(tool_use_id="t1", tool_name="boom", tool_input={})],
+        )
+    )
+    session.append_message(
+        Message(
+            role="user",
+            content=[
+                ToolResultBlock(tool_use_id="t1", content="it broke", is_error=True)
+            ],
+        )
+    )
+
+    result = Session(JsonlSessionStore.open(path)).build_context()[1].content[0]
+    assert result.is_error is True
+    assert result.content == "it broke"
+
+
+# ── a derived context is always something a provider will accept ────────────
+
+
+def test_an_orphaned_tool_call_is_dropped_from_the_context(tmp_path):
+    """A run killed mid-tool leaves a call with no result on disk.
+
+    Resuming must not hand the provider a transcript it rejects outright,
+    which is precisely the session a user most wants back.
+    """
+    from data_harness.llm.types import ToolUseBlock
+
+    def explode(value: str) -> str:
+        raise KeyboardInterrupt
+
+    spec = ToolSpec(
+        name="boom",
+        description="Die.",
+        input_schema={
+            "type": "object",
+            "properties": {"value": {"type": "string"}},
+            "required": ["value"],
+        },
+        handler=explode,
+    )
+    path = tmp_path / "s.jsonl"
+    harness = Harness(
+        adapter=FakeAdapter([FakeAdapter.tool_use("t1", "boom", {"value": "x"})]),
+        system="sys",
+        tools=[spec],
+        run_dir=str(tmp_path),
+        session=Session(JsonlSessionStore.create(path, "sess")),
+    )
+    with pytest.raises(KeyboardInterrupt):
+        harness.run("go")
+
+    # The orphan really is on disk.
+    stored = Session(JsonlSessionStore.open(path))
+    raw = [
+        b
+        for e in stored.store.entries()
+        if isinstance(e, MessageEntry)
+        for b in e.message.content
+    ]
+    assert any(isinstance(b, ToolUseBlock) for b in raw)
+
+    # It is not in the context a resumed run would send.
+    context = stored.build_context()
+    assert not any(isinstance(b, ToolUseBlock) for m in context for b in m.content)
+    assert texts(context) == ["go"]
+
+
+def test_a_compaction_that_orphans_a_tool_result_drops_it(store):
+    from data_harness.llm.types import ToolResultBlock, ToolUseBlock
+
+    session = Session(store)
+    session.append_message(say("q1"))
+    session.append_message(
+        Message(
+            role="assistant",
+            content=[ToolUseBlock(tool_use_id="t1", tool_name="echo", tool_input={})],
+        )
+    )
+    orphan = session.append_message(
+        Message(
+            role="user",
+            content=[ToolResultBlock(tool_use_id="t1", content="r", is_error=False)],
+        )
+    )
+    session.append_compaction("summary", first_kept_entry_id=orphan, tokens_before=1)
+    session.append_message(say("next"))
+
+    context = session.build_context()
+    assert not any(isinstance(b, ToolResultBlock) for m in context for b in m.content)
+
+
+# ── compaction is validated and composes ────────────────────────────────────
+
+
+def test_compacting_from_an_entry_off_the_path_is_rejected(store):
+    """A stale id would silently amnesia the agent rather than fail."""
+    session = Session(store)
+    root = session.append_message(say("q1"))
+    session.append_message(say("a1", "assistant"))
+    session.move_to(root)
+    abandoned_branch_entry = None
+    for entry in store.entries():
+        if isinstance(entry, MessageEntry) and entry.message.role == "assistant":
+            abandoned_branch_entry = entry.id
+
+    with pytest.raises(SessionStoreError) as excinfo:
+        session.append_compaction("s", abandoned_branch_entry, 1)
+    assert excinfo.value.code == "invalid_cut"
+
+
+def test_stacked_compactions_leave_one_summary_in_order(store):
+    """An older compaction inside the kept tail must not be replayed.
+
+    Doing so emitted the older summary *after* the newer one and resurrected
+    the very entries the older one had dropped.
+    """
+    session = Session(store)
+    session.append_message(say("q1"))
+    session.append_message(say("a1", "assistant"))
+    session.append_compaction(
+        "first summary", first_kept_entry_id=None, tokens_before=1
+    )
+    keep = session.append_message(say("q2"))
+    session.append_compaction(
+        "second summary", first_kept_entry_id=keep, tokens_before=2
+    )
+    session.append_message(say("q3"))
+
+    context = texts(session.build_context())
+    assert sum("summary" in c for c in context) == 1
+    assert "second summary" in context[0]
+    assert "q1" not in context and "a1" not in context
+    assert context[1:] == ["q2", "q3"]
+
+
+# ── the working copy and the log agree ──────────────────────────────────────
+
+
+def test_a_second_run_starts_a_new_branch_not_a_false_continuation(tmp_path):
+    """`run` resets the conversation, so the log must not imply otherwise.
+
+    Otherwise the tree claims a continuity the model was never shown, and
+    resuming replays a context that was never sent.
+    """
+    harness = Harness(
+        adapter=FakeAdapter([FakeAdapter.text("one"), FakeAdapter.text("two")]),
+        system="sys",
+        tools=[],
+        run_dir=str(tmp_path),
+    )
+    harness.run("first")
+    assert harness.session.build_context() == harness.messages
+
+    harness.run("second")
+    assert harness.session.build_context() == harness.messages
+    assert texts(harness.session.build_context()) == ["second", "two"]
+
+
+def test_the_log_and_the_working_copy_agree_on_every_entry_point(tmp_path):
+    harness = Harness(
+        adapter=FakeAdapter(
+            [FakeAdapter.text("a"), FakeAdapter.text("b"), FakeAdapter.text("c")]
+        ),
+        system="sys",
+        tools=[],
+        run_dir=str(tmp_path),
+    )
+    harness.run("q1")
+    assert harness.session.build_context() == harness.messages
+    harness.ask("q2")
+    assert harness.session.build_context() == harness.messages
+    harness.ask("q3")
+    assert harness.session.build_context() == harness.messages
+
+
+def test_a_reminder_appended_to_a_recorded_message_is_still_logged(tmp_path):
+    """Entries are immutable, so the reminder becomes its own entry.
+
+    Without it the JSONL store, which serialises on write, would show a
+    prompt the model never actually saw.
+    """
+    harness = Harness(
+        adapter=FakeAdapter([FakeAdapter.text("done")]),
+        system="sys",
+        tools=[],
+        run_dir=str(tmp_path),
+        max_turns=2,
+    )
+    harness.register_reminder(lambda turn, max_turns: "stay on task")
+    harness.run("go")
+
+    reminders = harness.session.custom_entries("reminder")
+    assert len(reminders) == 1
+    # The built-in max-turn nag rides along in the same suffix block.
+    assert reminders[0].data["text"].startswith("stay on task")
+    assert reminders[0].data["turn"] == 1
+
+
+def test_both_stores_agree_after_a_message_is_mutated(tmp_path):
+    """Stores snapshot on write, so neither can be rewritten after the fact."""
+    message = say("original")
+    memory = Session(MemorySessionStore("m"))
+    on_disk = Session(JsonlSessionStore.create(tmp_path / "s.jsonl", "d"))
+    memory.append_message(message)
+    on_disk.append_message(message)
+
+    message.content.append(TextBlock(text="added later"))
+
+    assert texts(memory.build_context()) == ["original"]
+    assert texts(on_disk.build_context()) == ["original"]

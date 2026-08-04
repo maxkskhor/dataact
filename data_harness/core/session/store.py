@@ -8,6 +8,7 @@ files itself.
 
 from __future__ import annotations
 
+import copy
 from typing import Protocol, runtime_checkable
 
 from data_harness.core.session.entries import Entry, leaf_after
@@ -79,6 +80,14 @@ class MemorySessionStore:
         return self._leaf_id
 
     def append(self, entry: Entry) -> None:
+        """Store a snapshot of ``entry``.
+
+        Copied, not referenced. A caller holding the same `Message` object can
+        otherwise keep editing it and silently rewrite history, and the JSONL
+        store (which serialises on write) would then disagree with this one
+        about what was sent.
+        """
+        entry = copy.deepcopy(entry)
         if entry.id in self._by_id:
             raise SessionStoreError(
                 "duplicate_entry", f"Entry {entry.id} already exists"

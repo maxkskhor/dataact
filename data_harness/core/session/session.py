@@ -26,7 +26,12 @@ from data_harness.core.session.entries import (
     utc_now,
 )
 from data_harness.core.session.store import MemorySessionStore, SessionStore
-from data_harness.llm.types import Message, TextBlock
+from data_harness.llm.types import (
+    Message,
+    TextBlock,
+    ToolResultBlock,
+    ToolUseBlock,
+)
 
 #: Turns a custom entry into messages for the model, or nothing.
 #:
@@ -90,6 +95,24 @@ class Session:
     def append_compaction(
         self, summary: str, first_kept_entry_id: str | None, tokens_before: int
     ) -> str:
+        """Summarise history before ``first_kept_entry_id``.
+
+        The kept id must be on the current path. Anything else is a bug in the
+        caller: an id from an abandoned branch, or one recorded before a fork,
+        would silently amnesia the agent rather than fail.
+
+        Raises:
+            SessionStoreError: If the kept id is not on the current path.
+        """
+        if first_kept_entry_id is not None:
+            from data_harness.core.session.store import SessionStoreError
+
+            if first_kept_entry_id not in {e.id for e in self.branch()}:
+                raise SessionStoreError(
+                    "invalid_cut",
+                    f"Compaction keeps from {first_kept_entry_id}, which is not "
+                    "on the current path",
+                )
         return self._append(
             lambda i, p, t: CompactionEntry(
                 id=i,
@@ -170,13 +193,28 @@ class Session:
             for entry in path[:compaction_index]:
                 if entry.id == newest_compaction.first_kept_entry_id:
                     keeping = True
-                if keeping:
-                    kept.append(entry)
+                if not keeping:
+                    continue
+                # An older compaction inside the kept tail has already been
+                # subsumed by this one. Replaying it would emit a second,
+                # older summary *after* the newer one and resurrect the very
+                # entries it had dropped.
+                if isinstance(entry, CompactionEntry):
+                    continue
+                kept.append(entry)
         kept.extend(path[compaction_index + 1 :])
         return kept
 
     def build_context(self, from_id: str | None = None) -> list[Message]:
-        """The messages the model should see. Derived, never stored."""
+        """The messages the model should see. Derived, never stored.
+
+        Always something a provider will accept: a tool call with no result,
+        or a result with no call, is dropped. Both are reachable without any
+        bug here. A run killed between issuing a tool call and recording its
+        result leaves the call orphaned on disk, and resuming would otherwise
+        send a transcript the provider rejects outright, breaking resume for
+        exactly the sessions most worth resuming.
+        """
         messages: list[Message] = []
         for entry in self.context_entries(from_id):
             if isinstance(entry, MessageEntry) and entry.message is not None:
@@ -199,7 +237,7 @@ class Session:
                 projector = self.projectors.get(entry.custom_type)
                 if projector is not None:
                     messages.extend(projector(entry))
-        return messages
+        return _drop_unpaired_tool_blocks(messages)
 
     # ── reporting ───────────────────────────────────────────────────────────
 
@@ -224,6 +262,45 @@ class Session:
             for entry in self.store.entries()
             if isinstance(entry, CustomEntry) and entry.custom_type == custom_type
         ]
+
+
+def _drop_unpaired_tool_blocks(messages: list[Message]) -> list[Message]:
+    """Remove tool calls with no result, and results with no call.
+
+    Providers reject either. Both arise legitimately: a run killed between
+    issuing a call and recording its result orphans the call, and a compaction
+    cut between the two orphans the result. A message left with no content is
+    dropped too, since an empty message is itself invalid.
+    """
+    answered = {
+        block.tool_use_id
+        for message in messages
+        for block in message.content
+        if isinstance(block, ToolResultBlock)
+    }
+    requested = {
+        block.tool_use_id
+        for message in messages
+        for block in message.content
+        if isinstance(block, ToolUseBlock)
+    }
+
+    repaired: list[Message] = []
+    for message in messages:
+        content = [
+            block
+            for block in message.content
+            if not (
+                isinstance(block, ToolUseBlock) and block.tool_use_id not in answered
+            )
+            and not (
+                isinstance(block, ToolResultBlock)
+                and block.tool_use_id not in requested
+            )
+        ]
+        if content:
+            repaired.append(Message(role=message.role, content=content))
+    return repaired
 
 
 def leaf_entries(session: Session) -> list[LeafEntry]:
