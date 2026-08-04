@@ -171,13 +171,38 @@ class _AgentBase:
         model: str | None = None,
         system: str | None = None,
         semantics: dict[str, dict] | None = None,
-        **kwargs: Any,
+        max_turns: int = 25,
+        cache: SessionCache | None = None,
+        run_dir: str | Path | None = None,
+        execution: str = "inprocess",
+        sandbox_options: dict[str, Any] | None = None,
+        on_code: Callable[[str], Any] | None = None,
+        code_only: bool = False,
+        hooks: HookRegistry | None = None,
     ) -> _SelfT:
         """Build an agent with ``data`` preloaded as cache handles.
 
         Accepts a DataFrame, a ``{name: value}`` mapping, a file path, or a list
         of paths. Resolves an adapter from ``model``/the environment and applies
         the default analyst system prompt unless overridden.
+
+        Args:
+            data: A DataFrame, a ``{name: value}`` mapping, a file path, or a
+                list of paths.
+            adapter: Pre-built provider adapter. Takes priority over ``model``.
+            model: Model id resolved into an adapter when ``adapter`` is not
+                given.
+            system: System prompt. Defaults to a general data-analyst prompt.
+            semantics: Optional ``{handle_name: {"columns": {...}}}`` context
+                folded into each handle's snapshot.
+            max_turns: Hard cap on provider turns per `run` call.
+            cache: Shared `SessionCache`. A fresh cache is created when ``None``.
+            run_dir: Directory for chart artefacts and subagent working state.
+            execution: ``"inprocess"`` or ``"subprocess"`` interpreter isolation.
+            sandbox_options: Extra options for the subprocess interpreter.
+            on_code: Approval gate called with interpreter code before it runs.
+            code_only: When ``True``, interpreter code is echoed, never executed.
+            hooks: Pre-built `HookRegistry` to reuse across agents.
         """
         from data_harness.app.quickstart import _DEFAULT_SYSTEM
         from data_harness.data.io import to_handles
@@ -186,7 +211,14 @@ class _AgentBase:
             system=system if system is not None else _DEFAULT_SYSTEM,
             adapter=adapter,
             model=model,
-            **kwargs,
+            max_turns=max_turns,
+            cache=cache,
+            run_dir=run_dir,
+            execution=execution,
+            sandbox_options=sandbox_options,
+            on_code=on_code,
+            code_only=code_only,
+            hooks=hooks,
         )
         sem = semantics or {}
         for name, value in to_handles(data).items():
@@ -194,9 +226,42 @@ class _AgentBase:
         return agent
 
     @classmethod
-    def from_csv(cls: type[_SelfT], path: str | Path, **kwargs: Any) -> _SelfT:
-        """Build an agent from a CSV (or other supported file) path."""
-        return cls.from_dataframe(str(path), **kwargs)
+    def from_csv(
+        cls: type[_SelfT],
+        path: str | Path,
+        *,
+        adapter: Any = None,
+        model: str | None = None,
+        system: str | None = None,
+        semantics: dict[str, dict] | None = None,
+        max_turns: int = 25,
+        cache: SessionCache | None = None,
+        run_dir: str | Path | None = None,
+        execution: str = "inprocess",
+        sandbox_options: dict[str, Any] | None = None,
+        on_code: Callable[[str], Any] | None = None,
+        code_only: bool = False,
+        hooks: HookRegistry | None = None,
+    ) -> _SelfT:
+        """Build an agent from a CSV (or other supported file) path.
+
+        See `from_dataframe` for the full argument reference.
+        """
+        return cls.from_dataframe(
+            str(path),
+            adapter=adapter,
+            model=model,
+            system=system,
+            semantics=semantics,
+            max_turns=max_turns,
+            cache=cache,
+            run_dir=run_dir,
+            execution=execution,
+            sandbox_options=sandbox_options,
+            on_code=on_code,
+            code_only=code_only,
+            hooks=hooks,
+        )
 
     # ── inspection ──────────────────────────────────────────────────────────
 
@@ -600,9 +665,26 @@ class Agent(_AgentBase):
         *,
         adapter: ProviderAdapter | None = None,
         model: str | None = None,
-        **kwargs: Any,
+        max_turns: int = 25,
+        cache: SessionCache | None = None,
+        run_dir: str | Path | None = None,
+        execution: str = "inprocess",
+        sandbox_options: dict[str, Any] | None = None,
+        on_code: Callable[[str], Any] | None = None,
+        code_only: bool = False,
+        hooks: HookRegistry | None = None,
     ) -> None:
-        super().__init__(system, **kwargs)
+        super().__init__(
+            system,
+            max_turns=max_turns,
+            cache=cache,
+            run_dir=run_dir,
+            execution=execution,
+            sandbox_options=sandbox_options,
+            on_code=on_code,
+            code_only=code_only,
+            hooks=hooks,
+        )
         self._adapter = adapter if adapter is not None else self._default_adapter(model)
         self._last_harness: Harness | None = None
 
@@ -704,6 +786,22 @@ class AsyncAgent(_AgentBase):
     and the interpreter approval gate. Also takes the same ``model=``
     shortcut — see `Agent` for details; ``adapter=`` here must be an
     `AsyncProviderAdapter`.
+
+    Args:
+        system: System prompt passed unchanged to every `AsyncHarness` run.
+        adapter: Asynchronous provider adapter. Takes priority over ``model``.
+        model: Model id resolved into an `AsyncProviderAdapter` via
+            `resolve_async_adapter`, when ``adapter`` is not given. With
+            neither, resolution falls back to whichever provider API key is
+            set in the environment.
+        max_turns: Hard cap on provider turns per `run` call.
+        cache: Shared `SessionCache`. A fresh cache is created when ``None``.
+        run_dir: Directory for chart artefacts and subagent working state.
+            Defaults to ``./runs``.
+        execution: ``"inprocess"`` or ``"subprocess"`` interpreter isolation.
+        sandbox_options: Extra options for the subprocess interpreter.
+        on_code: Approval gate called with interpreter code before it runs.
+        code_only: When ``True``, interpreter code is echoed, never executed.
     """
 
     def __init__(
@@ -712,9 +810,26 @@ class AsyncAgent(_AgentBase):
         *,
         adapter: AsyncProviderAdapter | None = None,
         model: str | None = None,
-        **kwargs: Any,
+        max_turns: int = 25,
+        cache: SessionCache | None = None,
+        run_dir: str | Path | None = None,
+        execution: str = "inprocess",
+        sandbox_options: dict[str, Any] | None = None,
+        on_code: Callable[[str], Any] | None = None,
+        code_only: bool = False,
+        hooks: HookRegistry | None = None,
     ) -> None:
-        super().__init__(system, **kwargs)
+        super().__init__(
+            system,
+            max_turns=max_turns,
+            cache=cache,
+            run_dir=run_dir,
+            execution=execution,
+            sandbox_options=sandbox_options,
+            on_code=on_code,
+            code_only=code_only,
+            hooks=hooks,
+        )
         self._adapter = adapter if adapter is not None else self._default_adapter(model)
         self._last_harness: AsyncHarness | None = None
 

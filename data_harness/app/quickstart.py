@@ -369,8 +369,30 @@ class SmartFrame:
         SmartFrame(df).chat("plot revenue by month")
     """
 
-    def __init__(self, df: Any, **kwargs: Any) -> None:
-        self._chat = Chat(df, **kwargs)
+    def __init__(
+        self,
+        df: Any,
+        *,
+        model: str | None = None,
+        adapter: ProviderAdapter | None = None,
+        system: str | None = None,
+        semantics: dict[str, dict] | None = None,
+        sql: bool | None = None,
+        require_answer: bool = False,
+        max_turns: int = 12,
+        run_dir: str | None = None,
+    ) -> None:
+        self._chat = Chat(
+            df,
+            model=model,
+            adapter=adapter,
+            system=system,
+            semantics=semantics,
+            sql=sql,
+            require_answer=require_answer,
+            max_turns=max_turns,
+            run_dir=run_dir,
+        )
 
     def chat(self, question: str) -> RunResult:
         """Ask a question about the wrapped frame; returns a `RunResult`."""

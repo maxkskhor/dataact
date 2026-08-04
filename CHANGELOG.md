@@ -1,5 +1,19 @@
 # Changelog
 
+### 1.3.0
+
+- **No more `**kwargs` in the public constructors.** `Agent.__init__`,
+  `AsyncAgent.__init__`, `Agent.from_dataframe`, and `Agent.from_csv` now
+  name every parameter explicitly instead of forwarding an opaque
+  `**kwargs: Any` to `_AgentBase`. This was a real, not cosmetic, problem:
+  the API reference (mkdocstrings/griffe) could not see through the
+  `**kwargs` forwarding, so it rendered an incomplete signature and warned
+  about documented parameters ("`max_turns`", "`run_dir`", ...) that
+  appeared to not exist. The docs now match the actual code exactly, with
+  zero griffe warnings on a full site build. Every call site — positional
+  or keyword, in this codebase or a caller's — is unaffected; only the
+  internal `**kwargs` plumbing changed.
+
 ### 1.2.0
 
 - **`Agent(system=..., model=...)`.** The constructor now resolves an adapter

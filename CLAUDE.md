@@ -22,7 +22,7 @@ The future `learn-data-harness` repo should be the clean teaching resource: basi
 
 Do not erase the core harness invariants. `data-harness` can become a framework, but it should remain explicit about execution, context, provider, state, subagent, and logging boundaries.
 
-## Shipped surface (as of v1.2.0)
+## Shipped surface (as of v1.3.0)
 
 A snapshot so agents stop re-proposing work that already exists. Confirm against the code before relying on it.
 
