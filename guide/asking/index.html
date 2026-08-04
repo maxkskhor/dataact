@@ -1110,7 +1110,8 @@ same way as OpenRouter/DeepSeek:</p>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">ask</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">adapter</span><span class="o">=</span><span class="n">OpenAIAdapter</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;llama-3.3-70b-versatile&quot;</span><span class="p">,</span> <span class="n">provider</span><span class="o">=</span><span class="s2">&quot;groq&quot;</span><span class="p">))</span>
 </code></pre></div>
-<p>A provider not on that list is a config, not a class:</p>
+<p>Register any other OpenAI-compatible provider with a plain config, no adapter
+class required:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">data_harness.llm.providers.openai</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">OpenAICompatibleProvider</span><span class="p">,</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">register_openai_compatible_provider</span><span class="p">,</span>
