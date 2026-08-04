@@ -22,13 +22,13 @@ The future `learn-data-harness` repo should be the clean teaching resource: basi
 
 Do not erase the core harness invariants. `data-harness` can become a framework, but it should remain explicit about execution, context, provider, state, subagent, and logging boundaries.
 
-## Shipped surface (as of v1.0.0)
+## Shipped surface (as of v1.1.0)
 
 A snapshot so agents stop re-proposing work that already exists. Confirm against the code before relying on it.
 
 - Layers: `llm` -> `core` -> `data` -> `app`, each importing only the layers below it, enforced statically by `tests/test_layers.py`. There is no compatibility shim for the pre-layering flat import paths (`data_harness.loop`, `data_harness.cache`, ...) — they were removed in v1.0.0. Import from the layered path (`data_harness.core.loop`, `data_harness.data.cache`, ...) or the top-level `data_harness` re-exports in `__init__.py`.
 - Entry points: `ask(df, "...")` one-liner, `Chat` / `SmartFrame`, `Agent.from_dataframe` / `from_csv`, `resolve_adapter` (env-based provider resolution), and a `%%ask` notebook magic (`data_harness/app/notebook.py`, `data_harness/app/pandas.py`).
-- Providers: `AnthropicAdapter`, `OpenAIAdapter` (accepts `base_url`/`api_key`), `OpenRouterAdapter` (OpenAI-compatible, `provider/model` ids, `OPENROUTER_API_KEY`), and `DeepSeekAdapter` (direct, `deepseek-*` ids, `DEEPSEEK_API_KEY`) — all behind `ProviderAdapter` / `AsyncProviderAdapter`. `resolve_adapter` routes `provider/model` ids to OpenRouter and `deepseek-*` to DeepSeek direct.
+- Providers: `AnthropicAdapter` for the one genuinely different wire protocol (Anthropic's Messages API); everything else goes through `OpenAIAdapter`, which speaks the OpenAI-compatible chat completions format and resolves `base_url`/`api_key` from a `provider=` name against the `PROVIDERS` registry (`llm/providers/openai.py`) — pre-registered: `openrouter`, `deepseek`, `groq`, `together`, `fireworks`, `cerebras`, `xai`. A new OpenAI-compatible provider is a `register_openai_compatible_provider(OpenAICompatibleProvider(...))` call, not a subclass. `OpenRouterAdapter`/`DeepSeekAdapter` still exist as named convenience classes over the same mechanism, for callers who had them already. All behind `ProviderAdapter` / `AsyncProviderAdapter`. `resolve_adapter` routes `provider/model` ids to OpenRouter and `deepseek-*` to DeepSeek direct.
 - One loop, two drivers: `_HarnessBase._plan` in `core/loop.py` is the single generator; `Harness` runs it inline (sync), `AsyncHarness` awaits it and adds streaming (`run_stream()` / `ask_stream()`, SSE event types in `llm/streaming.py`).
 - Multi-turn: `AgentSession` / `AsyncAgentSession` over a shared cache and history.
 - Session tree: `core/session/` — an append-only tree of typed entries (`MessageEntry`, `TurnEntry`, `CompactionEntry`, ...) with a movable leaf; the conversation is derived by walking root to leaf, never stored separately. `JsonlSessionStore` persists it to disk (one line per entry); `MemorySessionStore` is the default.

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+from dataclasses import dataclass
 
 import openai
 
@@ -22,6 +23,86 @@ from data_harness.llm.types import (
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+
+
+@dataclass(frozen=True)
+class OpenAICompatibleProvider:
+    """A provider reachable through the OpenAI-compatible chat completions wire
+    format — which is most of them. Registering one is the entire integration:
+    no adapter subclass, just where the endpoint and the API key live.
+
+    Only providers with a genuinely different wire protocol (Anthropic's
+    Messages API) need their own `ProviderAdapter` implementation. Everything
+    else is a row in `PROVIDERS`.
+    """
+
+    name: str
+    base_url: str
+    api_key_env: str
+    default_model: str
+
+
+#: Registered providers, by name. `OpenAIAdapter(provider=...)` and
+#: `AsyncOpenAIAdapter(provider=...)` resolve against this.
+PROVIDERS: dict[str, OpenAICompatibleProvider] = {}
+
+
+def register_openai_compatible_provider(provider: OpenAICompatibleProvider) -> None:
+    """Register (or override) an OpenAI-compatible provider.
+
+    Adapters already constructed are unaffected — the registry is only
+    consulted at `OpenAIAdapter.__init__` time.
+    """
+    PROVIDERS[provider.name] = provider
+
+
+def _resolve_provider(name: str) -> OpenAICompatibleProvider:
+    try:
+        return PROVIDERS[name]
+    except KeyError:
+        # ValueError, not the core taxonomy's ConfigurationError: llm may not
+        # import core (tests/test_layers.py enforces this statically).
+        raise ValueError(
+            f"Unknown provider {name!r}. Registered: {sorted(PROVIDERS)}. "
+            "Register a new one with register_openai_compatible_provider()."
+        ) from None
+
+
+for _provider in (
+    OpenAICompatibleProvider(
+        "openrouter", OPENROUTER_BASE_URL, "OPENROUTER_API_KEY", "openai/gpt-4o-mini"
+    ),
+    OpenAICompatibleProvider(
+        "deepseek", DEEPSEEK_BASE_URL, "DEEPSEEK_API_KEY", "deepseek-chat"
+    ),
+    OpenAICompatibleProvider(
+        "groq",
+        "https://api.groq.com/openai/v1",
+        "GROQ_API_KEY",
+        "llama-3.3-70b-versatile",
+    ),
+    OpenAICompatibleProvider(
+        "together",
+        "https://api.together.xyz/v1",
+        "TOGETHER_API_KEY",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    ),
+    OpenAICompatibleProvider(
+        "fireworks",
+        "https://api.fireworks.ai/inference/v1",
+        "FIREWORKS_API_KEY",
+        "accounts/fireworks/models/llama-v3p3-70b-instruct",
+    ),
+    OpenAICompatibleProvider(
+        "cerebras", "https://api.cerebras.ai/v1", "CEREBRAS_API_KEY", "llama-3.3-70b"
+    ),
+    OpenAICompatibleProvider(
+        "xai", "https://api.x.ai/v1", "XAI_API_KEY", "grok-2-latest"
+    ),
+):
+    register_openai_compatible_provider(_provider)
+del _provider
+
 
 _STOP_REASON_MAP = {
     "stop": StopReason.END_TURN,
@@ -125,6 +206,11 @@ class _OpenAIHelpers:
 
 
 class OpenAIAdapter(_OpenAIHelpers, ProviderAdapter):
+    """OpenAI-compatible adapter. Works against any provider speaking the
+    OpenAI chat completions wire format — pass ``base_url``/``api_key``
+    directly, or ``provider=`` to resolve both from `PROVIDERS`.
+    """
+
     def __init__(
         self,
         model: str = "gpt-4o-mini",
@@ -132,7 +218,12 @@ class OpenAIAdapter(_OpenAIHelpers, ProviderAdapter):
         *,
         base_url: str | None = None,
         api_key: str | None = None,
+        provider: str | None = None,
     ) -> None:
+        if provider is not None:
+            config = _resolve_provider(provider)
+            base_url = base_url or config.base_url
+            api_key = api_key or os.environ.get(config.api_key_env)
         self._model = model
         self._max_tokens = max_tokens
         self._client = openai.OpenAI(base_url=base_url, api_key=api_key)
@@ -169,7 +260,12 @@ class AsyncOpenAIAdapter(_OpenAIHelpers, AsyncProviderAdapter):
         *,
         base_url: str | None = None,
         api_key: str | None = None,
+        provider: str | None = None,
     ) -> None:
+        if provider is not None:
+            config = _resolve_provider(provider)
+            base_url = base_url or config.base_url
+            api_key = api_key or os.environ.get(config.api_key_env)
         self._model = model
         self._max_tokens = max_tokens
         self._client = openai.AsyncOpenAI(base_url=base_url, api_key=api_key)
@@ -209,13 +305,14 @@ class OpenRouterAdapter(OpenAIAdapter):
         max_tokens: int = 4096,
         *,
         api_key: str | None = None,
-        base_url: str = OPENROUTER_BASE_URL,
+        base_url: str | None = None,
     ) -> None:
         super().__init__(
             model=model,
             max_tokens=max_tokens,
             base_url=base_url,
-            api_key=api_key or os.environ.get("OPENROUTER_API_KEY"),
+            api_key=api_key,
+            provider="openrouter",
         )
 
 
@@ -228,13 +325,14 @@ class AsyncOpenRouterAdapter(AsyncOpenAIAdapter):
         max_tokens: int = 4096,
         *,
         api_key: str | None = None,
-        base_url: str = OPENROUTER_BASE_URL,
+        base_url: str | None = None,
     ) -> None:
         super().__init__(
             model=model,
             max_tokens=max_tokens,
             base_url=base_url,
-            api_key=api_key or os.environ.get("OPENROUTER_API_KEY"),
+            api_key=api_key,
+            provider="openrouter",
         )
 
 
@@ -252,13 +350,14 @@ class DeepSeekAdapter(OpenAIAdapter):
         max_tokens: int = 4096,
         *,
         api_key: str | None = None,
-        base_url: str = DEEPSEEK_BASE_URL,
+        base_url: str | None = None,
     ) -> None:
         super().__init__(
             model=model,
             max_tokens=max_tokens,
             base_url=base_url,
-            api_key=api_key or os.environ.get("DEEPSEEK_API_KEY"),
+            api_key=api_key,
+            provider="deepseek",
         )
 
 
@@ -271,11 +370,12 @@ class AsyncDeepSeekAdapter(AsyncOpenAIAdapter):
         max_tokens: int = 4096,
         *,
         api_key: str | None = None,
-        base_url: str = DEEPSEEK_BASE_URL,
+        base_url: str | None = None,
     ) -> None:
         super().__init__(
             model=model,
             max_tokens=max_tokens,
             base_url=base_url,
-            api_key=api_key or os.environ.get("DEEPSEEK_API_KEY"),
+            api_key=api_key,
+            provider="deepseek",
         )

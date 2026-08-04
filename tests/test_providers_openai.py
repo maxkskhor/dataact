@@ -305,6 +305,100 @@ class TestOpenAIAdapter:
         assert tools == tools_before
 
 
+class TestOpenAICompatibleProviderRegistry:
+    """`provider=` resolves base_url/api_key from PROVIDERS — no new adapter
+    class needed to add an OpenAI-compatible provider."""
+
+    def test_builtin_providers_are_registered(self):
+        from data_harness.llm.providers.openai import PROVIDERS
+
+        for name in (
+            "openrouter",
+            "deepseek",
+            "groq",
+            "together",
+            "fireworks",
+            "cerebras",
+            "xai",
+        ):
+            assert name in PROVIDERS
+            assert PROVIDERS[name].base_url.startswith("https://")
+            assert PROVIDERS[name].api_key_env
+
+    def test_provider_resolves_base_url_and_key(self, monkeypatch):
+        from data_harness.llm.providers.openai import PROVIDERS, OpenAIAdapter
+
+        monkeypatch.setenv("GROQ_API_KEY", "groq-secret")
+        adapter = OpenAIAdapter(model="llama-3.3-70b-versatile", provider="groq")
+        assert str(adapter._client.base_url).rstrip("/") == PROVIDERS["groq"].base_url
+        assert adapter._client.api_key == "groq-secret"
+
+    def test_explicit_base_url_or_api_key_overrides_the_registry(self, monkeypatch):
+        from data_harness.llm.providers.openai import OpenAIAdapter
+
+        monkeypatch.setenv("GROQ_API_KEY", "groq-secret")
+        adapter = OpenAIAdapter(
+            provider="groq",
+            base_url="https://custom.proxy/v1",
+            api_key="explicit-key",
+        )
+        assert str(adapter._client.base_url).rstrip("/") == "https://custom.proxy/v1"
+        assert adapter._client.api_key == "explicit-key"
+
+    def test_unregistered_provider_raises(self):
+        from data_harness.llm.providers.openai import OpenAIAdapter
+
+        with pytest.raises(ValueError, match="Unknown provider"):
+            OpenAIAdapter(provider="not-a-real-provider")
+
+    def test_registering_a_new_provider_needs_no_adapter_subclass(self, monkeypatch):
+        from data_harness.llm.providers.openai import (
+            OpenAIAdapter,
+            OpenAICompatibleProvider,
+            register_openai_compatible_provider,
+        )
+
+        register_openai_compatible_provider(
+            OpenAICompatibleProvider(
+                name="acme",
+                base_url="https://acme.example/v1",
+                api_key_env="ACME_API_KEY",
+                default_model="acme-large",
+            )
+        )
+        monkeypatch.setenv("ACME_API_KEY", "acme-secret")
+        adapter = OpenAIAdapter(model="acme-large", provider="acme")
+        assert str(adapter._client.base_url).rstrip("/") == "https://acme.example/v1"
+        assert adapter._client.api_key == "acme-secret"
+
+    def test_async_variant_resolves_the_same_way(self, monkeypatch):
+        from data_harness.llm.providers.openai import PROVIDERS, AsyncOpenAIAdapter
+
+        monkeypatch.setenv("GROQ_API_KEY", "groq-secret")
+        adapter = AsyncOpenAIAdapter(model="llama-3.3-70b-versatile", provider="groq")
+        assert str(adapter._client.base_url).rstrip("/") == PROVIDERS["groq"].base_url
+        assert adapter._client.api_key == "groq-secret"
+
+    def test_openrouter_and_deepseek_adapters_use_the_same_mechanism(self, monkeypatch):
+        """The named convenience classes are registry entries, not bespoke code."""
+        from data_harness.llm.providers.openai import (
+            PROVIDERS,
+            DeepSeekAdapter,
+            OpenRouterAdapter,
+        )
+
+        monkeypatch.setenv("OPENROUTER_API_KEY", "or-key")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "ds-key")
+        router = OpenRouterAdapter()
+        deepseek = DeepSeekAdapter()
+        assert (
+            str(router._client.base_url).rstrip("/") == PROVIDERS["openrouter"].base_url
+        )
+        assert (
+            str(deepseek._client.base_url).rstrip("/") == PROVIDERS["deepseek"].base_url
+        )
+
+
 @pytest.mark.live
 def test_openai_live_smoke():
     if not os.environ.get("OPENAI_API_KEY"):

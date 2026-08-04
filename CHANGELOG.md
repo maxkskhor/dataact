@@ -1,10 +1,24 @@
 # Changelog
 
+### 1.1.0
+
+- **Provider registry.** Adding an OpenAI-compatible provider (most of them
+  are) no longer needs a new adapter class — it's a
+  `register_openai_compatible_provider(OpenAICompatibleProvider(...))` call.
+  `OpenAIAdapter`/`AsyncOpenAIAdapter` gain `provider=`, which resolves
+  `base_url`/`api_key` from the `PROVIDERS` registry (`llm/providers/openai.py`).
+  Pre-registered: `openrouter`, `deepseek`, `groq`, `together`, `fireworks`,
+  `cerebras`, `xai`. `OpenRouterAdapter`/`DeepSeekAdapter` are unchanged for
+  existing callers — they're now implemented on top of the same mechanism
+  instead of duplicating `os.environ.get(...)` lookups. Anthropic keeps its own
+  adapter; its Messages API is the one genuinely different wire protocol.
+
 ### 1.0.0
 
-Structural refactor, taking its shape from the pi agent harness. Every
-previous import path still works, and resolves to the same object rather than
-a copy. One breaking change: the per-turn JSONL log is gone (see below).
+Structural refactor, taking its shape from the pi agent harness. One breaking
+change beyond the layer move itself: the per-turn JSONL log is gone (see
+below), and the flat pre-layering import paths no longer resolve — there is
+no compatibility shim.
 
 - **Layers.** The package was one flat namespace where the loop constructed a
   `SessionCache` and called `format_tool_output`. It is now `llm` -> `core` ->
@@ -44,8 +58,15 @@ a copy. One breaking change: the per-turn JSONL log is gone (see below).
   Anything that read `result.run_file` for post-hoc inspection should read
   `harness.session` instead (`session.store.entries()`, or `JsonlSessionStore`
   to persist it).
+- **Breaking: no legacy-path compatibility shim.** The pre-layering flat
+  import paths (`data_harness.loop`, `data_harness.cache`, ...) are gone —
+  import from the layered path (`data_harness.core.loop`,
+  `data_harness.data.cache`, ...) or the top-level `data_harness` re-exports.
+  Also removed, not deprecated: `Harness.register_reminder()` / `.reminders`
+  (use `harness.on(BeforeTurn, hook)` returning `Reminder`) and
+  `AsyncProviderAdapter.stream()` (use `stream_events()`).
 
-891 tests, up from 547.
+823 tests, up from 547.
 
 
 ### 0.13.0

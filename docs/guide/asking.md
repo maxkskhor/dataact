@@ -41,6 +41,38 @@ DeepSeek's own (very cheap) API works directly too — set `DEEPSEEK_API_KEY` an
 use a bare `model="deepseek-chat"` (or `DeepSeekAdapter`). A `deepseek/...` id
 with a slash routes via OpenRouter instead.
 
+### Adding a provider without writing an adapter
+
+Most LLM providers speak the OpenAI-compatible chat completions format — only
+Anthropic's Messages API is different enough to need its own adapter. Groq,
+Together, Fireworks, Cerebras, and xAI are pre-registered, so they work the
+same way as OpenRouter/DeepSeek:
+
+```python
+from data_harness.llm.providers.openai import OpenAIAdapter
+
+ask(df, "...", adapter=OpenAIAdapter(model="llama-3.3-70b-versatile", provider="groq"))
+```
+
+A provider not on that list is a config, not a class:
+
+```python
+from data_harness.llm.providers.openai import (
+    OpenAICompatibleProvider,
+    register_openai_compatible_provider,
+)
+
+register_openai_compatible_provider(
+    OpenAICompatibleProvider(
+        name="my-provider",
+        base_url="https://api.my-provider.example/v1",
+        api_key_env="MY_PROVIDER_API_KEY",
+        default_model="my-model-large",
+    )
+)
+ask(df, "...", adapter=OpenAIAdapter(model="my-model-large", provider="my-provider"))
+```
+
 ## Structured answers
 
 The interpreter exposes an `answer(value)` helper. When the model calls it, the
