@@ -1,5 +1,20 @@
 # Changelog
 
+### 1.2.0
+
+- **`Agent(system=..., model=...)`.** The constructor now resolves an adapter
+  from a model id directly, the same way `Agent.from_dataframe(model=...)`
+  and `ask()` always have. Previously the plain constructor required a
+  pre-built `adapter=`, even though the resolution logic already existed
+  elsewhere in the codebase — `Agent(system="...", model="claude-sonnet-4-6")`
+  now works without constructing `AnthropicAdapter` by hand. `adapter=` still
+  works and takes priority when both are given. `AsyncAgent` gets the same
+  `model=`. Fully backward compatible: every existing `Agent(adapter=...)`
+  call is unaffected.
+- `plan/` moved to `archive/plan/` (gitignored, not pushed) — it was already
+  untracked as of 1.1.0; this just gives it a clearer home on disk instead of
+  a directory that looks like it vanished.
+
 ### 1.1.0
 
 - **Provider registry.** Adding an OpenAI-compatible provider (most of them

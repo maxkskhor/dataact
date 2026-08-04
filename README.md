@@ -175,9 +175,8 @@ What the runs show: the structured/large/stateful suites **saturate at ~100% acr
 
 ```python
 from data_harness import Agent
-from data_harness.llm.providers.anthropic import AnthropicAdapter
 
-agent = Agent(adapter=AnthropicAdapter(model="claude-sonnet-4-6"), system="You are a data analyst.")
+agent = Agent(system="You are a data analyst.", model="claude-sonnet-4-6")
 print(agent.run("Compute the mean of [1, 2, 3, 4, 5]."))
 ```
 

@@ -183,8 +183,9 @@ class _AgentBase:
         from data_harness.data.io import to_handles
 
         agent = cls(
-            adapter=adapter if adapter is not None else cls._default_adapter(model),
             system=system if system is not None else _DEFAULT_SYSTEM,
+            adapter=adapter,
+            model=model,
             **kwargs,
         )
         sem = semantics or {}
@@ -561,17 +562,28 @@ class Agent(_AgentBase):
     Example::
 
         from data_harness import Agent
+
+        agent = Agent(system="You are a data analyst.", model="claude-sonnet-4-6")
+        print(agent.run("Compute the mean of [1, 2, 3]."))
+
+    ``model`` resolves an adapter the same way `resolve_adapter` does: a
+    ``provider/model`` id routes to OpenRouter, ``deepseek-*`` to DeepSeek
+    direct, otherwise Anthropic or OpenAI by name. Pass ``adapter=`` instead
+    for a pre-built or custom adapter — it always wins over ``model``::
+
         from data_harness.llm.providers.anthropic import AnthropicAdapter
 
         agent = Agent(
-            adapter=AnthropicAdapter(model="claude-sonnet-4-6"),
             system="You are a data analyst.",
+            adapter=AnthropicAdapter(model="claude-sonnet-4-6", max_tokens=8192),
         )
-        print(agent.run("Compute the mean of [1, 2, 3]."))
 
     Args:
-        adapter: Synchronous provider adapter.
         system: System prompt passed unchanged to every `Harness` run.
+        adapter: Synchronous provider adapter. Takes priority over ``model``.
+        model: Model id resolved into an adapter via `resolve_adapter`, when
+            ``adapter`` is not given. With neither, resolution falls back to
+            whichever provider API key is set in the environment.
         max_turns: Hard cap on provider turns per `run` call.
         cache: Shared `SessionCache`. A fresh cache is created when ``None``.
         run_dir: Directory for chart artefacts and subagent working state.
@@ -584,12 +596,14 @@ class Agent(_AgentBase):
 
     def __init__(
         self,
-        adapter: ProviderAdapter,
         system: str,
+        *,
+        adapter: ProviderAdapter | None = None,
+        model: str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(system, **kwargs)
-        self._adapter = adapter
+        self._adapter = adapter if adapter is not None else self._default_adapter(model)
         self._last_harness: Harness | None = None
 
     @classmethod
@@ -687,17 +701,21 @@ class AsyncAgent(_AgentBase):
 
     Takes the same configuration and supports the same features as `Agent`:
     connectors, MCP servers, SQL, the planner, subagents, the replay cache,
-    and the interpreter approval gate.
+    and the interpreter approval gate. Also takes the same ``model=``
+    shortcut — see `Agent` for details; ``adapter=`` here must be an
+    `AsyncProviderAdapter`.
     """
 
     def __init__(
         self,
-        adapter: AsyncProviderAdapter,
         system: str,
+        *,
+        adapter: AsyncProviderAdapter | None = None,
+        model: str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(system, **kwargs)
-        self._adapter = adapter
+        self._adapter = adapter if adapter is not None else self._default_adapter(model)
         self._last_harness: AsyncHarness | None = None
 
     @classmethod

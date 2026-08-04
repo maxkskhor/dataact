@@ -11,21 +11,19 @@ and token-level streaming. They mirror the synchronous API exactly, with
 ```python
 import asyncio
 from data_harness import AsyncAgent
-from data_harness.llm.providers.anthropic import AnthropicAdapter
 
 async def main():
-    agent = AsyncAgent(
-        adapter=AnthropicAdapter(model="claude-sonnet-4-6"),
-        system="You are a data analyst.",
-    )
+    agent = AsyncAgent(system="You are a data analyst.", model="claude-sonnet-4-6")
     result = await agent.run("Compute the mean of [1, 2, 3, 4, 5].")
     print(result)
 
 asyncio.run(main())
 ```
 
-`AsyncAgent` requires an `AsyncProviderAdapter`. The built-in `AnthropicAdapter`
-implements both `ProviderAdapter` and `AsyncProviderAdapter`.
+`model=` resolves an `AsyncProviderAdapter` the same way `Agent`'s `model=`
+resolves a `ProviderAdapter`. Pass `adapter=` for a pre-built or custom one.
+The built-in `AnthropicAdapter` implements both `ProviderAdapter` and
+`AsyncProviderAdapter`, so it works with either `Agent` or `AsyncAgent`.
 
 ---
 
@@ -35,10 +33,7 @@ Use `AsyncAgent.run_stream()` to receive token-level events as they arrive:
 
 ```python
 async def stream_example():
-    agent = AsyncAgent(
-        adapter=AnthropicAdapter(model="claude-sonnet-4-6"),
-        system="You are a data analyst.",
-    )
+    agent = AsyncAgent(system="You are a data analyst.", model="claude-sonnet-4-6")
 
     async for event in agent.run_stream("Describe the unemployment trend."):
         match event.type:
@@ -76,10 +71,7 @@ emit it.
 
 ```python
 async def session_example():
-    agent = AsyncAgent(
-        adapter=AnthropicAdapter(model="claude-sonnet-4-6"),
-        system="You are a data analyst.",
-    )
+    agent = AsyncAgent(system="You are a data analyst.", model="claude-sonnet-4-6")
     session = agent.async_session()
 
     import pandas as pd

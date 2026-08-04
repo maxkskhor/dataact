@@ -97,11 +97,22 @@ For full control over tools, system prompt, and wiring:
 
 ```python
 from data_harness import Agent
+
+agent = Agent(system="You are a data analyst.", model="claude-sonnet-4-6")
+print(agent.run("Compute the mean of [1, 2, 3, 4, 5]."))
+```
+
+`model=` resolves an adapter for you, the same way `ask()` does. Pass
+`adapter=` instead for a pre-built or custom one — it takes priority over
+`model` when both are given:
+
+```python
 from data_harness.llm.providers.anthropic import AnthropicAdapter
 
-agent = Agent(adapter=AnthropicAdapter(model="claude-sonnet-4-6"),
-              system="You are a data analyst.")
-print(agent.run("Compute the mean of [1, 2, 3, 4, 5]."))
+agent = Agent(
+    system="You are a data analyst.",
+    adapter=AnthropicAdapter(model="claude-sonnet-4-6", max_tokens=8192),
+)
 ```
 
 `Agent.from_dataframe(df)` preloads data and resolves a provider for you;

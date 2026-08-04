@@ -106,6 +106,51 @@ class TestAgentPhase1:
         agent.explain()
 
 
+class TestAgentModelShortcut:
+    """Agent(system=..., model=...) resolves an adapter without the caller
+    constructing one, the same way Agent.from_dataframe(model=...) always has."""
+
+    def test_model_resolves_an_adapter(self, monkeypatch):
+        from data_harness.llm.providers.anthropic import AnthropicAdapter
+
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        agent = Agent(system="sys", model="claude-sonnet-4-6")
+        assert isinstance(agent._adapter, AnthropicAdapter)
+
+    def test_no_adapter_or_model_falls_back_to_the_environment(self, monkeypatch):
+        from data_harness.llm.providers.anthropic import AnthropicAdapter
+
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        agent = Agent(system="sys")
+        assert isinstance(agent._adapter, AnthropicAdapter)
+
+    def test_explicit_adapter_wins_over_model(self):
+        adapter = FakeAdapter([])
+        agent = Agent(system="sys", adapter=adapter, model="claude-sonnet-4-6")
+        assert agent._adapter is adapter
+
+    def test_model_shortcut_agent_runs(self, monkeypatch):
+        from data_harness.app import quickstart
+
+        monkeypatch.setattr(
+            quickstart,
+            "resolve_adapter",
+            lambda model=None: FakeAdapter([FakeAdapter.text("done")]),
+        )
+        agent = Agent(system="sys", model="claude-sonnet-4-6")
+        assert agent.run("hi") == "done"
+
+    def test_no_provider_configured_raises(self, monkeypatch):
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+        with pytest.raises(RuntimeError, match="No provider configured"):
+            Agent(system="sys")
+
+
 class TestAgentPhase1OneShotInvariant:
     def test_second_run_does_not_see_first_run_messages(self, tmp_path):
         """Each Agent.run() builds a fresh Harness; messages must not leak across."""

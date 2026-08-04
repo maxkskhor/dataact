@@ -15,7 +15,7 @@ env/
 runs/
 *.jsonl
 .DS_Store
-plan/
+archive/
 .claude/
 blogs/
 .playwright-mcp/

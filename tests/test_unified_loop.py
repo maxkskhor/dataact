@@ -104,6 +104,15 @@ def test_async_agent_accepts_the_sandbox_and_gate_options(tmp_path):
     assert agent._code_only is True
 
 
+def test_async_agent_model_shortcut_resolves_an_async_adapter(monkeypatch):
+    """AsyncAgent(system=..., model=...) mirrors Agent's shortcut."""
+    from data_harness.llm.providers.anthropic import AsyncAnthropicAdapter
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    agent = AsyncAgent(system="sys", model="claude-sonnet-4-6")
+    assert isinstance(agent._adapter, AsyncAnthropicAdapter)
+
+
 # ── streaming keeps its accounting ──────────────────────────────────────────
 
 

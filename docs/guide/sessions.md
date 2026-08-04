@@ -10,13 +10,8 @@ need to refer back to earlier results, use `AgentSession`.
 
 ```python
 from data_harness import Agent
-from data_harness.llm.providers.anthropic import AnthropicAdapter
 
-agent = Agent(
-    adapter=AnthropicAdapter(model="claude-sonnet-4-6"),
-    system="You are a data analyst.",
-)
-
+agent = Agent(system="You are a data analyst.", model="claude-sonnet-4-6")
 session = agent.session()
 ```
 

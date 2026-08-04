@@ -162,8 +162,9 @@ def _build_agent(
     sql: bool | None,
 ) -> Agent:
     agent = Agent(
-        adapter=adapter if adapter is not None else resolve_adapter(model),
         system=system if system is not None else _DEFAULT_SYSTEM,
+        adapter=adapter,
+        model=model,
         max_turns=max_turns,
         run_dir=run_dir,
     )
