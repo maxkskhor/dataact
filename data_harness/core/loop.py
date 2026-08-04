@@ -54,6 +54,7 @@ from data_harness.core.hooks import (
     BeforeTurn,
     Block,
     Event,
+    HookError,
     HookRegistry,
     Reminder,
     Replace,
@@ -311,7 +312,7 @@ class _HarnessBase:
             environment if environment is not None else NullEnvironment()
         )
         self._session = session if session is not None else Session()
-        self._hooks = hooks if hooks is not None else HookRegistry()
+        self._hooks = hooks.copy() if hooks is not None else HookRegistry()
         if on_code is not None or code_only:
             self._hooks.add(BeforeToolCall, make_code_gate(on_code, code_only))
         self._stop_reason: str | None = None
@@ -321,6 +322,9 @@ class _HarnessBase:
         self._messages: list[Message] = self._session.build_context()
         self._reminders: list[Callable[[int, int], str | None]] = []
         self._run_file: str | None = None
+        # Kept for introspection only. The gate hook closes over these at
+        # construction, so assigning them afterwards changes nothing; build a
+        # new harness, or register your own BeforeToolCall hook.
         self._on_code = on_code
         self._code_only = code_only
         self._last_result: RunResult | None = None
@@ -476,6 +480,19 @@ class _HarnessBase:
 
         try:
             yield from self._turns(total_usage)
+        except HookError as exc:
+            # A hook broke its contract. The run is over either way, but the
+            # tokens spent up to here were still billed, so report them rather
+            # than letting the exception escape with no RunResult at all.
+            self._last_result = self._build_result(
+                text="",
+                status="error",
+                turns=self._turns_completed,
+                stop_reason=None,
+                usage=self._usage_so_far,
+                error=repr(exc),
+            )
+            raise
         except GeneratorExit:
             # A consumer that stops mid-stream still spent whatever the
             # completed turns cost. Recording it here is the same rule that
@@ -509,6 +526,7 @@ class _HarnessBase:
                     stop_reason=None,
                     usage=total_usage,
                     error=None,
+                    stopped_by=self._stop_reason,
                 )
                 return
             visible_tools = [t for t in self._tools if t.visible]
@@ -614,6 +632,7 @@ class _HarnessBase:
                     turns=turn,
                     stop_reason=response.stop_reason,
                     usage=total_usage,
+                    stopped_by=self._stop_reason,
                 )
                 return
 
@@ -644,78 +663,15 @@ class _HarnessBase:
         tool_map = {t.name: t for t in self._tools}
         finished: list[tuple[str, ToolResultBlock]] = []
 
-        for tub in (b for b in content if isinstance(b, ToolUseBlock)):
-            spec = tool_map.get(tub.tool_name)
-            if spec is None or spec.handler is None:
-                finished.append(
-                    (
-                        tub.tool_name,
-                        ToolResultBlock(
-                            tool_use_id=tub.tool_use_id,
-                            content=f"Tool not found: {tub.tool_name!r}",
-                            is_error=True,
-                        ),
-                    )
-                )
-                continue
+        def settle(tub: ToolUseBlock, content: str, is_error: bool) -> None:
+            """Record one result, giving `AfterToolCall` a chance at it first.
 
-            blocked = self._hooks.first(
-                BeforeToolCall(
-                    turn=turn, tool_name=tub.tool_name, tool_input=tub.tool_input
-                ),
-                Block,
-            )
-            if blocked is not None:
-                finished.append(
-                    (
-                        tub.tool_name,
-                        ToolResultBlock(
-                            tool_use_id=tub.tool_use_id,
-                            content=blocked.reason,
-                            is_error=blocked.is_error,
-                        ),
-                    )
-                )
-                continue
-
-            request = CallTool(
-                tool_use_id=tub.tool_use_id,
-                tool_name=tub.tool_name,
-                handler=spec.handler,
-                tool_input=tub.tool_input,
-            )
-            answer = _require_answer(request, (yield request))
-
-            if isinstance(answer, Failed):
-                finished.append(
-                    (
-                        tub.tool_name,
-                        ToolResultBlock(
-                            tool_use_id=tub.tool_use_id,
-                            content=repr(answer.error),
-                            is_error=True,
-                        ),
-                    )
-                )
-                continue
-
-            try:
-                output = self._environment.render_tool_output(answer.value)
-            except Exception as exc:  # noqa: BLE001 - surfaced to the model
-                finished.append(
-                    (
-                        tub.tool_name,
-                        ToolResultBlock(
-                            tool_use_id=tub.tool_use_id,
-                            content=repr(exc),
-                            is_error=True,
-                        ),
-                    )
-                )
-                continue
-
+            Every result goes through here, including failures. A redaction
+            hook that only saw successes would miss the case most likely to
+            need it: an exception repr can carry a connection string.
+            """
             block = ToolResultBlock(
-                tool_use_id=tub.tool_use_id, content=output, is_error=False
+                tool_use_id=tub.tool_use_id, content=content, is_error=is_error
             )
             replacement = self._hooks.first(
                 AfterToolCall(
@@ -734,6 +690,53 @@ class _HarnessBase:
                 )
             finished.append((tub.tool_name, block))
 
+        for tub in (b for b in content if isinstance(b, ToolUseBlock)):
+            spec = tool_map.get(tub.tool_name)
+            if spec is None or spec.handler is None:
+                # The hook still sees the attempt: a policy hook needs to know
+                # about calls to tools that do not exist.
+                blocked = self._hooks.first(
+                    BeforeToolCall(
+                        turn=turn, tool_name=tub.tool_name, tool_input=tub.tool_input
+                    ),
+                    Block,
+                )
+                if blocked is not None:
+                    settle(tub, blocked.reason, blocked.is_error)
+                else:
+                    settle(tub, f"Tool not found: {tub.tool_name!r}", True)
+                continue
+
+            blocked = self._hooks.first(
+                BeforeToolCall(
+                    turn=turn, tool_name=tub.tool_name, tool_input=tub.tool_input
+                ),
+                Block,
+            )
+            if blocked is not None:
+                settle(tub, blocked.reason, blocked.is_error)
+                continue
+
+            request = CallTool(
+                tool_use_id=tub.tool_use_id,
+                tool_name=tub.tool_name,
+                handler=spec.handler,
+                tool_input=tub.tool_input,
+            )
+            answer = _require_answer(request, (yield request))
+
+            if isinstance(answer, Failed):
+                settle(tub, repr(answer.error), True)
+                continue
+
+            try:
+                output = self._environment.render_tool_output(answer.value)
+            except Exception as exc:  # noqa: BLE001 - surfaced to the model
+                settle(tub, repr(exc), True)
+                continue
+
+            settle(tub, output, False)
+
         return finished
 
     # ── pure helpers ────────────────────────────────────────────────────────
@@ -747,6 +750,7 @@ class _HarnessBase:
         stop_reason: StopReason | None,
         usage: Usage,
         error: str | None = None,
+        stopped_by: str | None = None,
     ) -> RunResult:
         state = self._environment.capture()
         return RunResult(
@@ -761,6 +765,7 @@ class _HarnessBase:
             value=state.value,
             charts=state.artifacts,
             error=error,
+            stopped_by=stopped_by,
         )
 
     def _apply_reminders(self, turn: int) -> None:

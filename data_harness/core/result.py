@@ -73,6 +73,9 @@ class RunResult:
         cache_storage: Mapping of handle name → `CacheStorageInfo` describing
             where each handle is stored.
         error: Exception repr when ``status == "error"``, otherwise ``None``.
+        stopped_by: Why a hook ended the run early, if one did. A capped run
+            is otherwise indistinguishable from a model that answered with
+            nothing.
         run_id: Optional UUID assigned by `Agent`; ``None`` when using `Harness`
             directly.
         session_id: Optional session UUID when the run is part of an
@@ -93,6 +96,7 @@ class RunResult:
     cache_snapshots: dict[str, str] = field(default_factory=dict)
     cache_storage: dict[str, CacheStorageInfo] = field(default_factory=dict)
     error: str | None = None
+    stopped_by: str | None = None
     run_id: str | None = None
     session_id: str | None = None
     value: Any = field(default=None, repr=False)

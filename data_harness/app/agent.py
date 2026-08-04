@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
+from data_harness.core.hooks import Decision, Event, HookRegistry
 from data_harness.core.result import CacheStorageInfo, RunResult, Usage, unwrap_text
 from data_harness.core.schema import infer_input_schema
 from data_harness.data.cache import SessionCache
@@ -119,6 +120,7 @@ class _AgentBase:
         sandbox_options: dict[str, Any] | None = None,
         on_code: Callable[[str], Any] | None = None,
         code_only: bool = False,
+        hooks: HookRegistry | None = None,
     ) -> None:
         self._system = system
         self._max_turns = max_turns
@@ -138,6 +140,7 @@ class _AgentBase:
         self._exec_cache: Any = None
         self._mcp_clients: dict[str, Any] = {}
         self._last_result: RunResult | None = None
+        self._hooks = hooks if hooks is not None else HookRegistry()
 
     # ── construction helpers ────────────────────────────────────────────────
 
@@ -203,6 +206,22 @@ class _AgentBase:
     def exec_cache(self) -> Any:
         """The `ExecutionCache`, or ``None`` if caching is disabled."""
         return self._exec_cache
+
+    @property
+    def hooks(self) -> HookRegistry:
+        """Hooks applied to every harness this agent builds.
+
+        The agent constructs a fresh `Harness` per run, so hooks have to live
+        here rather than on the harness: one registered on a harness would be
+        gone by the next call.
+        """
+        return self._hooks
+
+    def on(
+        self, event_type: type[Event], hook: Callable[[Any], Decision | None]
+    ) -> None:
+        """Register ``hook`` for ``event_type``. See `data_harness.core.hooks`."""
+        self._hooks.add(event_type, hook)
 
     # ── feature toggles ─────────────────────────────────────────────────────
 
@@ -466,6 +485,7 @@ class _AgentBase:
             "cache": effective_cache,
             "on_code": self._on_code,
             "code_only": self._code_only,
+            "hooks": self._hooks,
         }
         if self._run_dir is not None:
             kwargs["run_dir"] = str(self._run_dir)

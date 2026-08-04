@@ -128,6 +128,7 @@ Decision = Reminder | Block | Replace | Stop
 Hook = Callable[[Any], Decision | None]
 
 _E = TypeVar("_E", bound=Event)
+_D = TypeVar("_D", bound=Decision)
 
 
 class HookError(Exception):
@@ -175,9 +176,24 @@ class HookRegistry:
                 decisions.append(decision)
         return decisions
 
-    def first(self, event: Event, kind: type[_E]) -> Any:
-        """The first decision of type ``kind``, or ``None``."""
+    def first(self, event: Event, kind: type[_D]) -> _D | None:
+        """The first decision of type ``kind``, or ``None``.
+
+        Later decisions of the same kind are discarded. Conflicting policies
+        are the caller's problem to avoid, not this class's to arbitrate.
+        """
         for decision in self.emit(event):
             if isinstance(decision, kind):
                 return decision
         return None
+
+    def copy(self) -> HookRegistry:
+        """An independent registry with the same hooks.
+
+        Taken whenever a registry is handed to a harness. The harness adds its
+        own hooks (the approval gate, for one), and writing those into the
+        caller's object would leak one harness's policy into every other
+        harness sharing it, which is exactly the reuse the parameter exists
+        to support.
+        """
+        return HookRegistry({k: list(v) for k, v in self.hooks.items()})
