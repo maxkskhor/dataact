@@ -17,8 +17,6 @@ runs/
 .DS_Store
 plan/
 .claude/
-AGENTS.md
-CLAUDE.md
 blogs/
 .playwright-mcp/
 artifact-*.html

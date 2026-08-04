@@ -16,3 +16,15 @@ jobs:
       - run: uv run --python ${{ matrix.python }} ruff check data_harness tests
       - run: uv run --python ${{ matrix.python }} ruff format --check data_harness tests
       - run: uv run --python ${{ matrix.python }} pytest tests/ -m "not live"
+
+  # Mirrors the build step in docs.yml (mkdocs gh-deploy runs `mkdocs build`
+  # internally). Without this, a broken mkdocstrings reference only surfaces
+  # after merging to main, when the separate deploy workflow fails silently
+  # with nobody watching it.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --group docs
+      - run: uv run --group docs mkdocs build
