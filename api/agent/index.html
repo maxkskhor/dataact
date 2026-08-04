@@ -1311,8 +1311,15 @@ a <code>Harness</code>, <code>SessionCache</code>, and optional tools from a sin
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">adapter</span><span class="p">:</span> <span class="n">ProviderAdapter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">max_turns</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">25</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">cache</span><span class="p">:</span> <span class="n">SessionCache</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">run_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">execution</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;inprocess&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">sandbox_options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">on_code</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">code_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">hooks</span><span class="p">:</span> <span class="n">HookRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents first">
@@ -1411,6 +1418,7 @@ whichever provider API key is set in the environment.</p>
                 <code>max_turns</code>
             </td>
             <td>
+                  <code><span title="int">int</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1418,7 +1426,7 @@ whichever provider API key is set in the environment.</p>
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>25</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1426,6 +1434,7 @@ whichever provider API key is set in the environment.</p>
                 <code>cache</code>
             </td>
             <td>
+                  <code><a class="autorefs autorefs-internal" title="            data_harness.data.cache.SessionCache" href="../cache/#data_harness.data.cache.SessionCache">SessionCache</a> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1433,7 +1442,7 @@ whichever provider API key is set in the environment.</p>
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>None</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1441,6 +1450,7 @@ whichever provider API key is set in the environment.</p>
                 <code>run_dir</code>
             </td>
             <td>
+                  <code><span title="str">str</span> | <span title="pathlib.Path">Path</span> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1449,7 +1459,7 @@ Defaults to <code>./runs</code>.</p>
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>None</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1457,6 +1467,7 @@ Defaults to <code>./runs</code>.</p>
                 <code>execution</code>
             </td>
             <td>
+                  <code><span title="str">str</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1464,7 +1475,7 @@ Defaults to <code>./runs</code>.</p>
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>&#39;inprocess&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1472,6 +1483,7 @@ Defaults to <code>./runs</code>.</p>
                 <code>sandbox_options</code>
             </td>
             <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1479,7 +1491,7 @@ Defaults to <code>./runs</code>.</p>
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>None</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1487,6 +1499,7 @@ Defaults to <code>./runs</code>.</p>
                 <code>on_code</code>
             </td>
             <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="str">str</span>], <span title="typing.Any">Any</span>] | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1494,7 +1507,7 @@ Defaults to <code>./runs</code>.</p>
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>None</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1502,6 +1515,7 @@ Defaults to <code>./runs</code>.</p>
                 <code>code_only</code>
             </td>
             <td>
+                  <code><span title="bool">bool</span></code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1509,7 +1523,7 @@ Defaults to <code>./runs</code>.</p>
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>False</code>
             </td>
           </tr>
       </tbody>
@@ -1524,27 +1538,61 @@ Defaults to <code>./runs</code>.</p>
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-597">597</a></span>
-<span class="normal"><a href="#__codelineno-0-598">598</a></span>
-<span class="normal"><a href="#__codelineno-0-599">599</a></span>
-<span class="normal"><a href="#__codelineno-0-600">600</a></span>
-<span class="normal"><a href="#__codelineno-0-601">601</a></span>
-<span class="normal"><a href="#__codelineno-0-602">602</a></span>
-<span class="normal"><a href="#__codelineno-0-603">603</a></span>
-<span class="normal"><a href="#__codelineno-0-604">604</a></span>
-<span class="normal"><a href="#__codelineno-0-605">605</a></span>
-<span class="normal"><a href="#__codelineno-0-606">606</a></span>
-<span class="normal"><a href="#__codelineno-0-607">607</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-597" name="__codelineno-0-597"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-<a id="__codelineno-0-598" name="__codelineno-0-598"></a>    <span class="bp">self</span><span class="p">,</span>
-<a id="__codelineno-0-599" name="__codelineno-0-599"></a>    <span class="n">system</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-600" name="__codelineno-0-600"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-601" name="__codelineno-0-601"></a>    <span class="n">adapter</span><span class="p">:</span> <span class="n">ProviderAdapter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-602" name="__codelineno-0-602"></a>    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-603" name="__codelineno-0-603"></a>    <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-604" name="__codelineno-0-604"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-605" name="__codelineno-0-605"></a>    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-<a id="__codelineno-0-606" name="__codelineno-0-606"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_adapter</span> <span class="o">=</span> <span class="n">adapter</span> <span class="k">if</span> <span class="n">adapter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_adapter</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
-<a id="__codelineno-0-607" name="__codelineno-0-607"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_harness</span><span class="p">:</span> <span class="n">Harness</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-662">662</a></span>
+<span class="normal"><a href="#__codelineno-0-663">663</a></span>
+<span class="normal"><a href="#__codelineno-0-664">664</a></span>
+<span class="normal"><a href="#__codelineno-0-665">665</a></span>
+<span class="normal"><a href="#__codelineno-0-666">666</a></span>
+<span class="normal"><a href="#__codelineno-0-667">667</a></span>
+<span class="normal"><a href="#__codelineno-0-668">668</a></span>
+<span class="normal"><a href="#__codelineno-0-669">669</a></span>
+<span class="normal"><a href="#__codelineno-0-670">670</a></span>
+<span class="normal"><a href="#__codelineno-0-671">671</a></span>
+<span class="normal"><a href="#__codelineno-0-672">672</a></span>
+<span class="normal"><a href="#__codelineno-0-673">673</a></span>
+<span class="normal"><a href="#__codelineno-0-674">674</a></span>
+<span class="normal"><a href="#__codelineno-0-675">675</a></span>
+<span class="normal"><a href="#__codelineno-0-676">676</a></span>
+<span class="normal"><a href="#__codelineno-0-677">677</a></span>
+<span class="normal"><a href="#__codelineno-0-678">678</a></span>
+<span class="normal"><a href="#__codelineno-0-679">679</a></span>
+<span class="normal"><a href="#__codelineno-0-680">680</a></span>
+<span class="normal"><a href="#__codelineno-0-681">681</a></span>
+<span class="normal"><a href="#__codelineno-0-682">682</a></span>
+<span class="normal"><a href="#__codelineno-0-683">683</a></span>
+<span class="normal"><a href="#__codelineno-0-684">684</a></span>
+<span class="normal"><a href="#__codelineno-0-685">685</a></span>
+<span class="normal"><a href="#__codelineno-0-686">686</a></span>
+<span class="normal"><a href="#__codelineno-0-687">687</a></span>
+<span class="normal"><a href="#__codelineno-0-688">688</a></span>
+<span class="normal"><a href="#__codelineno-0-689">689</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-662" name="__codelineno-0-662"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+<a id="__codelineno-0-663" name="__codelineno-0-663"></a>    <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-0-664" name="__codelineno-0-664"></a>    <span class="n">system</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-665" name="__codelineno-0-665"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-666" name="__codelineno-0-666"></a>    <span class="n">adapter</span><span class="p">:</span> <span class="n">ProviderAdapter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-667" name="__codelineno-0-667"></a>    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-668" name="__codelineno-0-668"></a>    <span class="n">max_turns</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">25</span><span class="p">,</span>
+<a id="__codelineno-0-669" name="__codelineno-0-669"></a>    <span class="n">cache</span><span class="p">:</span> <span class="n">SessionCache</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-670" name="__codelineno-0-670"></a>    <span class="n">run_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-671" name="__codelineno-0-671"></a>    <span class="n">execution</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;inprocess&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-672" name="__codelineno-0-672"></a>    <span class="n">sandbox_options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-673" name="__codelineno-0-673"></a>    <span class="n">on_code</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-674" name="__codelineno-0-674"></a>    <span class="n">code_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-675" name="__codelineno-0-675"></a>    <span class="n">hooks</span><span class="p">:</span> <span class="n">HookRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-676" name="__codelineno-0-676"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-677" name="__codelineno-0-677"></a>    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+<a id="__codelineno-0-678" name="__codelineno-0-678"></a>        <span class="n">system</span><span class="p">,</span>
+<a id="__codelineno-0-679" name="__codelineno-0-679"></a>        <span class="n">max_turns</span><span class="o">=</span><span class="n">max_turns</span><span class="p">,</span>
+<a id="__codelineno-0-680" name="__codelineno-0-680"></a>        <span class="n">cache</span><span class="o">=</span><span class="n">cache</span><span class="p">,</span>
+<a id="__codelineno-0-681" name="__codelineno-0-681"></a>        <span class="n">run_dir</span><span class="o">=</span><span class="n">run_dir</span><span class="p">,</span>
+<a id="__codelineno-0-682" name="__codelineno-0-682"></a>        <span class="n">execution</span><span class="o">=</span><span class="n">execution</span><span class="p">,</span>
+<a id="__codelineno-0-683" name="__codelineno-0-683"></a>        <span class="n">sandbox_options</span><span class="o">=</span><span class="n">sandbox_options</span><span class="p">,</span>
+<a id="__codelineno-0-684" name="__codelineno-0-684"></a>        <span class="n">on_code</span><span class="o">=</span><span class="n">on_code</span><span class="p">,</span>
+<a id="__codelineno-0-685" name="__codelineno-0-685"></a>        <span class="n">code_only</span><span class="o">=</span><span class="n">code_only</span><span class="p">,</span>
+<a id="__codelineno-0-686" name="__codelineno-0-686"></a>        <span class="n">hooks</span><span class="o">=</span><span class="n">hooks</span><span class="p">,</span>
+<a id="__codelineno-0-687" name="__codelineno-0-687"></a>    <span class="p">)</span>
+<a id="__codelineno-0-688" name="__codelineno-0-688"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_adapter</span> <span class="o">=</span> <span class="n">adapter</span> <span class="k">if</span> <span class="n">adapter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_adapter</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+<a id="__codelineno-0-689" name="__codelineno-0-689"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_harness</span><span class="p">:</span> <span class="n">Harness</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
@@ -1602,19 +1650,19 @@ Defaults to <code>./runs</code>.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-633">633</a></span>
-<span class="normal"><a href="#__codelineno-0-634">634</a></span>
-<span class="normal"><a href="#__codelineno-0-635">635</a></span>
-<span class="normal"><a href="#__codelineno-0-636">636</a></span>
-<span class="normal"><a href="#__codelineno-0-637">637</a></span>
-<span class="normal"><a href="#__codelineno-0-638">638</a></span>
-<span class="normal"><a href="#__codelineno-0-639">639</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-633" name="__codelineno-0-633"></a><span class="k">def</span><span class="w"> </span><span class="nf">session</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AgentSession</span><span class="p">:</span>
-<a id="__codelineno-0-634" name="__codelineno-0-634"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a stateful `AgentSession` for multi-turn conversations.</span>
-<a id="__codelineno-0-635" name="__codelineno-0-635"></a>
-<a id="__codelineno-0-636" name="__codelineno-0-636"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-637" name="__codelineno-0-637"></a><span class="sd">        A new `AgentSession` backed by a copy of this agent&#39;s cache.</span>
-<a id="__codelineno-0-638" name="__codelineno-0-638"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-639" name="__codelineno-0-639"></a>    <span class="k">return</span> <span class="n">AgentSession</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-715">715</a></span>
+<span class="normal"><a href="#__codelineno-0-716">716</a></span>
+<span class="normal"><a href="#__codelineno-0-717">717</a></span>
+<span class="normal"><a href="#__codelineno-0-718">718</a></span>
+<span class="normal"><a href="#__codelineno-0-719">719</a></span>
+<span class="normal"><a href="#__codelineno-0-720">720</a></span>
+<span class="normal"><a href="#__codelineno-0-721">721</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-715" name="__codelineno-0-715"></a><span class="k">def</span><span class="w"> </span><span class="nf">session</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AgentSession</span><span class="p">:</span>
+<a id="__codelineno-0-716" name="__codelineno-0-716"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a stateful `AgentSession` for multi-turn conversations.</span>
+<a id="__codelineno-0-717" name="__codelineno-0-717"></a>
+<a id="__codelineno-0-718" name="__codelineno-0-718"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-719" name="__codelineno-0-719"></a><span class="sd">        A new `AgentSession` backed by a copy of this agent&#39;s cache.</span>
+<a id="__codelineno-0-720" name="__codelineno-0-720"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-721" name="__codelineno-0-721"></a>    <span class="k">return</span> <span class="n">AgentSession</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1699,55 +1747,55 @@ Defaults to <code>./runs</code>.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-641">641</a></span>
-<span class="normal"><a href="#__codelineno-0-642">642</a></span>
-<span class="normal"><a href="#__codelineno-0-643">643</a></span>
-<span class="normal"><a href="#__codelineno-0-644">644</a></span>
-<span class="normal"><a href="#__codelineno-0-645">645</a></span>
-<span class="normal"><a href="#__codelineno-0-646">646</a></span>
-<span class="normal"><a href="#__codelineno-0-647">647</a></span>
-<span class="normal"><a href="#__codelineno-0-648">648</a></span>
-<span class="normal"><a href="#__codelineno-0-649">649</a></span>
-<span class="normal"><a href="#__codelineno-0-650">650</a></span>
-<span class="normal"><a href="#__codelineno-0-651">651</a></span>
-<span class="normal"><a href="#__codelineno-0-652">652</a></span>
-<span class="normal"><a href="#__codelineno-0-653">653</a></span>
-<span class="normal"><a href="#__codelineno-0-654">654</a></span>
-<span class="normal"><a href="#__codelineno-0-655">655</a></span>
-<span class="normal"><a href="#__codelineno-0-656">656</a></span>
-<span class="normal"><a href="#__codelineno-0-657">657</a></span>
-<span class="normal"><a href="#__codelineno-0-658">658</a></span>
-<span class="normal"><a href="#__codelineno-0-659">659</a></span>
-<span class="normal"><a href="#__codelineno-0-660">660</a></span>
-<span class="normal"><a href="#__codelineno-0-661">661</a></span>
-<span class="normal"><a href="#__codelineno-0-662">662</a></span>
-<span class="normal"><a href="#__codelineno-0-663">663</a></span>
-<span class="normal"><a href="#__codelineno-0-664">664</a></span>
-<span class="normal"><a href="#__codelineno-0-665">665</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-641" name="__codelineno-0-641"></a><span class="k">def</span><span class="w"> </span><span class="nf">run_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResult</span><span class="p">:</span>
-<a id="__codelineno-0-642" name="__codelineno-0-642"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the agent and return the full `RunResult`.</span>
-<a id="__codelineno-0-643" name="__codelineno-0-643"></a>
-<a id="__codelineno-0-644" name="__codelineno-0-644"></a><span class="sd">    Builds a fresh `Harness` with a fresh message history for each call.</span>
-<a id="__codelineno-0-645" name="__codelineno-0-645"></a>
-<a id="__codelineno-0-646" name="__codelineno-0-646"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-647" name="__codelineno-0-647"></a><span class="sd">        user_message: The user prompt to send.</span>
-<a id="__codelineno-0-648" name="__codelineno-0-648"></a>
-<a id="__codelineno-0-649" name="__codelineno-0-649"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-650" name="__codelineno-0-650"></a><span class="sd">        A `RunResult` with the text response, token usage, and cache state.</span>
-<a id="__codelineno-0-651" name="__codelineno-0-651"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-652" name="__codelineno-0-652"></a>    <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay_key</span><span class="p">(</span><span class="n">user_message</span><span class="p">)</span>
-<a id="__codelineno-0-653" name="__codelineno-0-653"></a>    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-654" name="__codelineno-0-654"></a>        <span class="n">cached</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exec_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-<a id="__codelineno-0-655" name="__codelineno-0-655"></a>        <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-656" name="__codelineno-0-656"></a>            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
-<a id="__codelineno-0-657" name="__codelineno-0-657"></a>
-<a id="__codelineno-0-658" name="__codelineno-0-658"></a>    <span class="n">harness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_harness</span><span class="p">()</span>
-<a id="__codelineno-0-659" name="__codelineno-0-659"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_harness</span> <span class="o">=</span> <span class="n">harness</span>
-<a id="__codelineno-0-660" name="__codelineno-0-660"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">harness</span><span class="o">.</span><span class="n">run_result</span><span class="p">(</span>
-<a id="__codelineno-0-661" name="__codelineno-0-661"></a>        <span class="n">user_message</span><span class="p">,</span> <span class="n">run_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()),</span> <span class="n">session_id</span><span class="o">=</span><span class="kc">None</span>
-<a id="__codelineno-0-662" name="__codelineno-0-662"></a>    <span class="p">)</span>
-<a id="__codelineno-0-663" name="__codelineno-0-663"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_result</span> <span class="o">=</span> <span class="n">result</span>
-<a id="__codelineno-0-664" name="__codelineno-0-664"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_record_replay</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">harness</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
-<a id="__codelineno-0-665" name="__codelineno-0-665"></a>    <span class="k">return</span> <span class="n">result</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-723">723</a></span>
+<span class="normal"><a href="#__codelineno-0-724">724</a></span>
+<span class="normal"><a href="#__codelineno-0-725">725</a></span>
+<span class="normal"><a href="#__codelineno-0-726">726</a></span>
+<span class="normal"><a href="#__codelineno-0-727">727</a></span>
+<span class="normal"><a href="#__codelineno-0-728">728</a></span>
+<span class="normal"><a href="#__codelineno-0-729">729</a></span>
+<span class="normal"><a href="#__codelineno-0-730">730</a></span>
+<span class="normal"><a href="#__codelineno-0-731">731</a></span>
+<span class="normal"><a href="#__codelineno-0-732">732</a></span>
+<span class="normal"><a href="#__codelineno-0-733">733</a></span>
+<span class="normal"><a href="#__codelineno-0-734">734</a></span>
+<span class="normal"><a href="#__codelineno-0-735">735</a></span>
+<span class="normal"><a href="#__codelineno-0-736">736</a></span>
+<span class="normal"><a href="#__codelineno-0-737">737</a></span>
+<span class="normal"><a href="#__codelineno-0-738">738</a></span>
+<span class="normal"><a href="#__codelineno-0-739">739</a></span>
+<span class="normal"><a href="#__codelineno-0-740">740</a></span>
+<span class="normal"><a href="#__codelineno-0-741">741</a></span>
+<span class="normal"><a href="#__codelineno-0-742">742</a></span>
+<span class="normal"><a href="#__codelineno-0-743">743</a></span>
+<span class="normal"><a href="#__codelineno-0-744">744</a></span>
+<span class="normal"><a href="#__codelineno-0-745">745</a></span>
+<span class="normal"><a href="#__codelineno-0-746">746</a></span>
+<span class="normal"><a href="#__codelineno-0-747">747</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-723" name="__codelineno-0-723"></a><span class="k">def</span><span class="w"> </span><span class="nf">run_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResult</span><span class="p">:</span>
+<a id="__codelineno-0-724" name="__codelineno-0-724"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the agent and return the full `RunResult`.</span>
+<a id="__codelineno-0-725" name="__codelineno-0-725"></a>
+<a id="__codelineno-0-726" name="__codelineno-0-726"></a><span class="sd">    Builds a fresh `Harness` with a fresh message history for each call.</span>
+<a id="__codelineno-0-727" name="__codelineno-0-727"></a>
+<a id="__codelineno-0-728" name="__codelineno-0-728"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-729" name="__codelineno-0-729"></a><span class="sd">        user_message: The user prompt to send.</span>
+<a id="__codelineno-0-730" name="__codelineno-0-730"></a>
+<a id="__codelineno-0-731" name="__codelineno-0-731"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-732" name="__codelineno-0-732"></a><span class="sd">        A `RunResult` with the text response, token usage, and cache state.</span>
+<a id="__codelineno-0-733" name="__codelineno-0-733"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-734" name="__codelineno-0-734"></a>    <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay_key</span><span class="p">(</span><span class="n">user_message</span><span class="p">)</span>
+<a id="__codelineno-0-735" name="__codelineno-0-735"></a>    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-736" name="__codelineno-0-736"></a>        <span class="n">cached</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exec_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+<a id="__codelineno-0-737" name="__codelineno-0-737"></a>        <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-738" name="__codelineno-0-738"></a>            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
+<a id="__codelineno-0-739" name="__codelineno-0-739"></a>
+<a id="__codelineno-0-740" name="__codelineno-0-740"></a>    <span class="n">harness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_harness</span><span class="p">()</span>
+<a id="__codelineno-0-741" name="__codelineno-0-741"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_harness</span> <span class="o">=</span> <span class="n">harness</span>
+<a id="__codelineno-0-742" name="__codelineno-0-742"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">harness</span><span class="o">.</span><span class="n">run_result</span><span class="p">(</span>
+<a id="__codelineno-0-743" name="__codelineno-0-743"></a>        <span class="n">user_message</span><span class="p">,</span> <span class="n">run_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()),</span> <span class="n">session_id</span><span class="o">=</span><span class="kc">None</span>
+<a id="__codelineno-0-744" name="__codelineno-0-744"></a>    <span class="p">)</span>
+<a id="__codelineno-0-745" name="__codelineno-0-745"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_result</span> <span class="o">=</span> <span class="n">result</span>
+<a id="__codelineno-0-746" name="__codelineno-0-746"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_record_replay</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">harness</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+<a id="__codelineno-0-747" name="__codelineno-0-747"></a>    <span class="k">return</span> <span class="n">result</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1859,33 +1907,33 @@ Defaults to <code>./runs</code>.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-667">667</a></span>
-<span class="normal"><a href="#__codelineno-0-668">668</a></span>
-<span class="normal"><a href="#__codelineno-0-669">669</a></span>
-<span class="normal"><a href="#__codelineno-0-670">670</a></span>
-<span class="normal"><a href="#__codelineno-0-671">671</a></span>
-<span class="normal"><a href="#__codelineno-0-672">672</a></span>
-<span class="normal"><a href="#__codelineno-0-673">673</a></span>
-<span class="normal"><a href="#__codelineno-0-674">674</a></span>
-<span class="normal"><a href="#__codelineno-0-675">675</a></span>
-<span class="normal"><a href="#__codelineno-0-676">676</a></span>
-<span class="normal"><a href="#__codelineno-0-677">677</a></span>
-<span class="normal"><a href="#__codelineno-0-678">678</a></span>
-<span class="normal"><a href="#__codelineno-0-679">679</a></span>
-<span class="normal"><a href="#__codelineno-0-680">680</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-667" name="__codelineno-0-667"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-0-668" name="__codelineno-0-668"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the agent and return the final text response.</span>
-<a id="__codelineno-0-669" name="__codelineno-0-669"></a>
-<a id="__codelineno-0-670" name="__codelineno-0-670"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-671" name="__codelineno-0-671"></a><span class="sd">        user_message: The user prompt to send.</span>
-<a id="__codelineno-0-672" name="__codelineno-0-672"></a>
-<a id="__codelineno-0-673" name="__codelineno-0-673"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-674" name="__codelineno-0-674"></a><span class="sd">        The model&#39;s final text response.</span>
-<a id="__codelineno-0-675" name="__codelineno-0-675"></a>
-<a id="__codelineno-0-676" name="__codelineno-0-676"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-677" name="__codelineno-0-677"></a><span class="sd">        MaxTurnsExceeded: If the loop reaches ``max_turns``.</span>
-<a id="__codelineno-0-678" name="__codelineno-0-678"></a><span class="sd">        RuntimeError: If the provider raises an exception.</span>
-<a id="__codelineno-0-679" name="__codelineno-0-679"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-680" name="__codelineno-0-680"></a>    <span class="k">return</span> <span class="n">unwrap_text</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_result</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-749">749</a></span>
+<span class="normal"><a href="#__codelineno-0-750">750</a></span>
+<span class="normal"><a href="#__codelineno-0-751">751</a></span>
+<span class="normal"><a href="#__codelineno-0-752">752</a></span>
+<span class="normal"><a href="#__codelineno-0-753">753</a></span>
+<span class="normal"><a href="#__codelineno-0-754">754</a></span>
+<span class="normal"><a href="#__codelineno-0-755">755</a></span>
+<span class="normal"><a href="#__codelineno-0-756">756</a></span>
+<span class="normal"><a href="#__codelineno-0-757">757</a></span>
+<span class="normal"><a href="#__codelineno-0-758">758</a></span>
+<span class="normal"><a href="#__codelineno-0-759">759</a></span>
+<span class="normal"><a href="#__codelineno-0-760">760</a></span>
+<span class="normal"><a href="#__codelineno-0-761">761</a></span>
+<span class="normal"><a href="#__codelineno-0-762">762</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-749" name="__codelineno-0-749"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-0-750" name="__codelineno-0-750"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the agent and return the final text response.</span>
+<a id="__codelineno-0-751" name="__codelineno-0-751"></a>
+<a id="__codelineno-0-752" name="__codelineno-0-752"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-753" name="__codelineno-0-753"></a><span class="sd">        user_message: The user prompt to send.</span>
+<a id="__codelineno-0-754" name="__codelineno-0-754"></a>
+<a id="__codelineno-0-755" name="__codelineno-0-755"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-756" name="__codelineno-0-756"></a><span class="sd">        The model&#39;s final text response.</span>
+<a id="__codelineno-0-757" name="__codelineno-0-757"></a>
+<a id="__codelineno-0-758" name="__codelineno-0-758"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-759" name="__codelineno-0-759"></a><span class="sd">        MaxTurnsExceeded: If the loop reaches ``max_turns``.</span>
+<a id="__codelineno-0-760" name="__codelineno-0-760"></a><span class="sd">        RuntimeError: If the provider raises an exception.</span>
+<a id="__codelineno-0-761" name="__codelineno-0-761"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-762" name="__codelineno-0-762"></a>    <span class="k">return</span> <span class="n">unwrap_text</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_result</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -1934,39 +1982,39 @@ same message history and cache handles.</p>
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-842">842</a></span>
-<span class="normal"><a href="#__codelineno-0-843">843</a></span>
-<span class="normal"><a href="#__codelineno-0-844">844</a></span>
-<span class="normal"><a href="#__codelineno-0-845">845</a></span>
-<span class="normal"><a href="#__codelineno-0-846">846</a></span>
-<span class="normal"><a href="#__codelineno-0-847">847</a></span>
-<span class="normal"><a href="#__codelineno-0-848">848</a></span>
-<span class="normal"><a href="#__codelineno-0-849">849</a></span>
-<span class="normal"><a href="#__codelineno-0-850">850</a></span>
-<span class="normal"><a href="#__codelineno-0-851">851</a></span>
-<span class="normal"><a href="#__codelineno-0-852">852</a></span>
-<span class="normal"><a href="#__codelineno-0-853">853</a></span>
-<span class="normal"><a href="#__codelineno-0-854">854</a></span>
-<span class="normal"><a href="#__codelineno-0-855">855</a></span>
-<span class="normal"><a href="#__codelineno-0-856">856</a></span>
-<span class="normal"><a href="#__codelineno-0-857">857</a></span>
-<span class="normal"><a href="#__codelineno-0-858">858</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-842" name="__codelineno-0-842"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">agent</span><span class="p">:</span> <span class="n">_AgentBase</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-843" name="__codelineno-0-843"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_agent</span> <span class="o">=</span> <span class="n">agent</span>
-<a id="__codelineno-0-844" name="__codelineno-0-844"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="n">SessionCache</span><span class="p">(</span>
-<a id="__codelineno-0-845" name="__codelineno-0-845"></a>        <span class="n">sample_size</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">sample_size</span><span class="p">,</span>
-<a id="__codelineno-0-846" name="__codelineno-0-846"></a>        <span class="n">storage_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-847" name="__codelineno-0-847"></a>        <span class="n">hot_limit</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">hot_limit</span><span class="p">,</span>
-<a id="__codelineno-0-848" name="__codelineno-0-848"></a>    <span class="p">)</span>
-<a id="__codelineno-0-849" name="__codelineno-0-849"></a>    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-850" name="__codelineno-0-850"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">put</span><span class="p">(</span>
-<a id="__codelineno-0-851" name="__codelineno-0-851"></a>            <span class="n">name</span><span class="p">,</span>
-<a id="__codelineno-0-852" name="__codelineno-0-852"></a>            <span class="n">_copy_cache_value</span><span class="p">(</span><span class="n">value</span><span class="p">),</span>
-<a id="__codelineno-0-853" name="__codelineno-0-853"></a>            <span class="n">semantics</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">get_semantics</span><span class="p">(</span><span class="n">name</span><span class="p">),</span>
-<a id="__codelineno-0-854" name="__codelineno-0-854"></a>        <span class="p">)</span>
-<a id="__codelineno-0-855" name="__codelineno-0-855"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">_make_harness</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">)</span>  <span class="c1"># type: ignore[attr-defined]</span>
-<a id="__codelineno-0-856" name="__codelineno-0-856"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
-<a id="__codelineno-0-857" name="__codelineno-0-857"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_result</span><span class="p">:</span> <span class="n">RunResult</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-0-858" name="__codelineno-0-858"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_turns</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-957">957</a></span>
+<span class="normal"><a href="#__codelineno-0-958">958</a></span>
+<span class="normal"><a href="#__codelineno-0-959">959</a></span>
+<span class="normal"><a href="#__codelineno-0-960">960</a></span>
+<span class="normal"><a href="#__codelineno-0-961">961</a></span>
+<span class="normal"><a href="#__codelineno-0-962">962</a></span>
+<span class="normal"><a href="#__codelineno-0-963">963</a></span>
+<span class="normal"><a href="#__codelineno-0-964">964</a></span>
+<span class="normal"><a href="#__codelineno-0-965">965</a></span>
+<span class="normal"><a href="#__codelineno-0-966">966</a></span>
+<span class="normal"><a href="#__codelineno-0-967">967</a></span>
+<span class="normal"><a href="#__codelineno-0-968">968</a></span>
+<span class="normal"><a href="#__codelineno-0-969">969</a></span>
+<span class="normal"><a href="#__codelineno-0-970">970</a></span>
+<span class="normal"><a href="#__codelineno-0-971">971</a></span>
+<span class="normal"><a href="#__codelineno-0-972">972</a></span>
+<span class="normal"><a href="#__codelineno-0-973">973</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-957" name="__codelineno-0-957"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">agent</span><span class="p">:</span> <span class="n">_AgentBase</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-958" name="__codelineno-0-958"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_agent</span> <span class="o">=</span> <span class="n">agent</span>
+<a id="__codelineno-0-959" name="__codelineno-0-959"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="n">SessionCache</span><span class="p">(</span>
+<a id="__codelineno-0-960" name="__codelineno-0-960"></a>        <span class="n">sample_size</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">sample_size</span><span class="p">,</span>
+<a id="__codelineno-0-961" name="__codelineno-0-961"></a>        <span class="n">storage_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-962" name="__codelineno-0-962"></a>        <span class="n">hot_limit</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">hot_limit</span><span class="p">,</span>
+<a id="__codelineno-0-963" name="__codelineno-0-963"></a>    <span class="p">)</span>
+<a id="__codelineno-0-964" name="__codelineno-0-964"></a>    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-965" name="__codelineno-0-965"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">put</span><span class="p">(</span>
+<a id="__codelineno-0-966" name="__codelineno-0-966"></a>            <span class="n">name</span><span class="p">,</span>
+<a id="__codelineno-0-967" name="__codelineno-0-967"></a>            <span class="n">_copy_cache_value</span><span class="p">(</span><span class="n">value</span><span class="p">),</span>
+<a id="__codelineno-0-968" name="__codelineno-0-968"></a>            <span class="n">semantics</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">get_semantics</span><span class="p">(</span><span class="n">name</span><span class="p">),</span>
+<a id="__codelineno-0-969" name="__codelineno-0-969"></a>        <span class="p">)</span>
+<a id="__codelineno-0-970" name="__codelineno-0-970"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">_make_harness</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">)</span>  <span class="c1"># type: ignore[attr-defined]</span>
+<a id="__codelineno-0-971" name="__codelineno-0-971"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
+<a id="__codelineno-0-972" name="__codelineno-0-972"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_result</span><span class="p">:</span> <span class="n">RunResult</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-973" name="__codelineno-0-973"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_turns</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
@@ -2060,33 +2108,33 @@ same message history and cache handles.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-913">913</a></span>
-<span class="normal"><a href="#__codelineno-0-914">914</a></span>
-<span class="normal"><a href="#__codelineno-0-915">915</a></span>
-<span class="normal"><a href="#__codelineno-0-916">916</a></span>
-<span class="normal"><a href="#__codelineno-0-917">917</a></span>
-<span class="normal"><a href="#__codelineno-0-918">918</a></span>
-<span class="normal"><a href="#__codelineno-0-919">919</a></span>
-<span class="normal"><a href="#__codelineno-0-920">920</a></span>
-<span class="normal"><a href="#__codelineno-0-921">921</a></span>
-<span class="normal"><a href="#__codelineno-0-922">922</a></span>
-<span class="normal"><a href="#__codelineno-0-923">923</a></span>
-<span class="normal"><a href="#__codelineno-0-924">924</a></span>
-<span class="normal"><a href="#__codelineno-0-925">925</a></span>
-<span class="normal"><a href="#__codelineno-0-926">926</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-913" name="__codelineno-0-913"></a><span class="k">def</span><span class="w"> </span><span class="nf">ask_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResult</span><span class="p">:</span>
-<a id="__codelineno-0-914" name="__codelineno-0-914"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Send a follow-up message and return the full `RunResult`.</span>
-<a id="__codelineno-0-915" name="__codelineno-0-915"></a>
-<a id="__codelineno-0-916" name="__codelineno-0-916"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-917" name="__codelineno-0-917"></a><span class="sd">        user_message: The follow-up user prompt.</span>
-<a id="__codelineno-0-918" name="__codelineno-0-918"></a>
-<a id="__codelineno-0-919" name="__codelineno-0-919"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-920" name="__codelineno-0-920"></a><span class="sd">        A `RunResult` for this turn sequence.</span>
-<a id="__codelineno-0-921" name="__codelineno-0-921"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-922" name="__codelineno-0-922"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record</span><span class="p">(</span>
-<a id="__codelineno-0-923" name="__codelineno-0-923"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span><span class="o">.</span><span class="n">ask_result</span><span class="p">(</span>
-<a id="__codelineno-0-924" name="__codelineno-0-924"></a>            <span class="n">user_message</span><span class="p">,</span> <span class="n">run_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()),</span> <span class="n">session_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_id</span>
-<a id="__codelineno-0-925" name="__codelineno-0-925"></a>        <span class="p">)</span>
-<a id="__codelineno-0-926" name="__codelineno-0-926"></a>    <span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1028">1028</a></span>
+<span class="normal"><a href="#__codelineno-0-1029">1029</a></span>
+<span class="normal"><a href="#__codelineno-0-1030">1030</a></span>
+<span class="normal"><a href="#__codelineno-0-1031">1031</a></span>
+<span class="normal"><a href="#__codelineno-0-1032">1032</a></span>
+<span class="normal"><a href="#__codelineno-0-1033">1033</a></span>
+<span class="normal"><a href="#__codelineno-0-1034">1034</a></span>
+<span class="normal"><a href="#__codelineno-0-1035">1035</a></span>
+<span class="normal"><a href="#__codelineno-0-1036">1036</a></span>
+<span class="normal"><a href="#__codelineno-0-1037">1037</a></span>
+<span class="normal"><a href="#__codelineno-0-1038">1038</a></span>
+<span class="normal"><a href="#__codelineno-0-1039">1039</a></span>
+<span class="normal"><a href="#__codelineno-0-1040">1040</a></span>
+<span class="normal"><a href="#__codelineno-0-1041">1041</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1028" name="__codelineno-0-1028"></a><span class="k">def</span><span class="w"> </span><span class="nf">ask_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResult</span><span class="p">:</span>
+<a id="__codelineno-0-1029" name="__codelineno-0-1029"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Send a follow-up message and return the full `RunResult`.</span>
+<a id="__codelineno-0-1030" name="__codelineno-0-1030"></a>
+<a id="__codelineno-0-1031" name="__codelineno-0-1031"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-1032" name="__codelineno-0-1032"></a><span class="sd">        user_message: The follow-up user prompt.</span>
+<a id="__codelineno-0-1033" name="__codelineno-0-1033"></a>
+<a id="__codelineno-0-1034" name="__codelineno-0-1034"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-1035" name="__codelineno-0-1035"></a><span class="sd">        A `RunResult` for this turn sequence.</span>
+<a id="__codelineno-0-1036" name="__codelineno-0-1036"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-1037" name="__codelineno-0-1037"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record</span><span class="p">(</span>
+<a id="__codelineno-0-1038" name="__codelineno-0-1038"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span><span class="o">.</span><span class="n">ask_result</span><span class="p">(</span>
+<a id="__codelineno-0-1039" name="__codelineno-0-1039"></a>            <span class="n">user_message</span><span class="p">,</span> <span class="n">run_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()),</span> <span class="n">session_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_id</span>
+<a id="__codelineno-0-1040" name="__codelineno-0-1040"></a>        <span class="p">)</span>
+<a id="__codelineno-0-1041" name="__codelineno-0-1041"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2198,33 +2246,33 @@ same message history and cache handles.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-928">928</a></span>
-<span class="normal"><a href="#__codelineno-0-929">929</a></span>
-<span class="normal"><a href="#__codelineno-0-930">930</a></span>
-<span class="normal"><a href="#__codelineno-0-931">931</a></span>
-<span class="normal"><a href="#__codelineno-0-932">932</a></span>
-<span class="normal"><a href="#__codelineno-0-933">933</a></span>
-<span class="normal"><a href="#__codelineno-0-934">934</a></span>
-<span class="normal"><a href="#__codelineno-0-935">935</a></span>
-<span class="normal"><a href="#__codelineno-0-936">936</a></span>
-<span class="normal"><a href="#__codelineno-0-937">937</a></span>
-<span class="normal"><a href="#__codelineno-0-938">938</a></span>
-<span class="normal"><a href="#__codelineno-0-939">939</a></span>
-<span class="normal"><a href="#__codelineno-0-940">940</a></span>
-<span class="normal"><a href="#__codelineno-0-941">941</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-928" name="__codelineno-0-928"></a><span class="k">def</span><span class="w"> </span><span class="nf">ask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-0-929" name="__codelineno-0-929"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Send a follow-up message and return the final text response.</span>
-<a id="__codelineno-0-930" name="__codelineno-0-930"></a>
-<a id="__codelineno-0-931" name="__codelineno-0-931"></a><span class="sd">    Args:</span>
-<a id="__codelineno-0-932" name="__codelineno-0-932"></a><span class="sd">        user_message: The follow-up user prompt.</span>
-<a id="__codelineno-0-933" name="__codelineno-0-933"></a>
-<a id="__codelineno-0-934" name="__codelineno-0-934"></a><span class="sd">    Returns:</span>
-<a id="__codelineno-0-935" name="__codelineno-0-935"></a><span class="sd">        The model&#39;s final text response.</span>
-<a id="__codelineno-0-936" name="__codelineno-0-936"></a>
-<a id="__codelineno-0-937" name="__codelineno-0-937"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-938" name="__codelineno-0-938"></a><span class="sd">        MaxTurnsExceeded: If the loop reaches ``max_turns``.</span>
-<a id="__codelineno-0-939" name="__codelineno-0-939"></a><span class="sd">        RuntimeError: If the provider raises an exception.</span>
-<a id="__codelineno-0-940" name="__codelineno-0-940"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-941" name="__codelineno-0-941"></a>    <span class="k">return</span> <span class="n">unwrap_text</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ask_result</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1043">1043</a></span>
+<span class="normal"><a href="#__codelineno-0-1044">1044</a></span>
+<span class="normal"><a href="#__codelineno-0-1045">1045</a></span>
+<span class="normal"><a href="#__codelineno-0-1046">1046</a></span>
+<span class="normal"><a href="#__codelineno-0-1047">1047</a></span>
+<span class="normal"><a href="#__codelineno-0-1048">1048</a></span>
+<span class="normal"><a href="#__codelineno-0-1049">1049</a></span>
+<span class="normal"><a href="#__codelineno-0-1050">1050</a></span>
+<span class="normal"><a href="#__codelineno-0-1051">1051</a></span>
+<span class="normal"><a href="#__codelineno-0-1052">1052</a></span>
+<span class="normal"><a href="#__codelineno-0-1053">1053</a></span>
+<span class="normal"><a href="#__codelineno-0-1054">1054</a></span>
+<span class="normal"><a href="#__codelineno-0-1055">1055</a></span>
+<span class="normal"><a href="#__codelineno-0-1056">1056</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1043" name="__codelineno-0-1043"></a><span class="k">def</span><span class="w"> </span><span class="nf">ask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-0-1044" name="__codelineno-0-1044"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Send a follow-up message and return the final text response.</span>
+<a id="__codelineno-0-1045" name="__codelineno-0-1045"></a>
+<a id="__codelineno-0-1046" name="__codelineno-0-1046"></a><span class="sd">    Args:</span>
+<a id="__codelineno-0-1047" name="__codelineno-0-1047"></a><span class="sd">        user_message: The follow-up user prompt.</span>
+<a id="__codelineno-0-1048" name="__codelineno-0-1048"></a>
+<a id="__codelineno-0-1049" name="__codelineno-0-1049"></a><span class="sd">    Returns:</span>
+<a id="__codelineno-0-1050" name="__codelineno-0-1050"></a><span class="sd">        The model&#39;s final text response.</span>
+<a id="__codelineno-0-1051" name="__codelineno-0-1051"></a>
+<a id="__codelineno-0-1052" name="__codelineno-0-1052"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-1053" name="__codelineno-0-1053"></a><span class="sd">        MaxTurnsExceeded: If the loop reaches ``max_turns``.</span>
+<a id="__codelineno-0-1054" name="__codelineno-0-1054"></a><span class="sd">        RuntimeError: If the provider raises an exception.</span>
+<a id="__codelineno-0-1055" name="__codelineno-0-1055"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-1056" name="__codelineno-0-1056"></a>    <span class="k">return</span> <span class="n">unwrap_text</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ask_result</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2255,8 +2303,15 @@ same message history and cache handles.</p>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">adapter</span><span class="p">:</span> <span class="n">AsyncProviderAdapter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">max_turns</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">25</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">cache</span><span class="p">:</span> <span class="n">SessionCache</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">run_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">execution</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;inprocess&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">sandbox_options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">on_code</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">code_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">hooks</span><span class="p">:</span> <span class="n">HookRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents first">
@@ -2276,6 +2331,185 @@ shortcut — see <code>Agent</code> for details; <code>adapter=</code> here must
 <code>AsyncProviderAdapter</code>.</p>
 
 
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>system</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>System prompt passed unchanged to every <code>AsyncHarness</code> run.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>adapter</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            data_harness.AsyncProviderAdapter (data_harness.llm.providers.base.AsyncProviderAdapter)" href="../providers/#data_harness.AsyncProviderAdapter">AsyncProviderAdapter</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Asynchronous provider adapter. Takes priority over <code>model</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>model</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Model id resolved into an <code>AsyncProviderAdapter</code> via
+<code>resolve_async_adapter</code>, when <code>adapter</code> is not given. With
+neither, resolution falls back to whichever provider API key is
+set in the environment.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_turns</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Hard cap on provider turns per <code>run</code> call.</p>
+              </div>
+            </td>
+            <td>
+                  <code>25</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cache</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-internal" title="            data_harness.data.cache.SessionCache" href="../cache/#data_harness.data.cache.SessionCache">SessionCache</a> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Shared <code>SessionCache</code>. A fresh cache is created when <code>None</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>run_dir</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | <span title="pathlib.Path">Path</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Directory for chart artefacts and subagent working state.
+Defaults to <code>./runs</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>execution</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"inprocess"</code> or <code>"subprocess"</code> interpreter isolation.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;inprocess&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>sandbox_options</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Extra options for the subprocess interpreter.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>on_code</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Callable">Callable</span>[[<span title="str">str</span>], <span title="typing.Any">Any</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Approval gate called with interpreter code before it runs.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>code_only</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>When <code>True</code>, interpreter code is echoed, never executed.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
 
 
 
@@ -2284,27 +2518,61 @@ shortcut — see <code>Agent</code> for details; <code>adapter=</code> here must
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-709">709</a></span>
-<span class="normal"><a href="#__codelineno-0-710">710</a></span>
-<span class="normal"><a href="#__codelineno-0-711">711</a></span>
-<span class="normal"><a href="#__codelineno-0-712">712</a></span>
-<span class="normal"><a href="#__codelineno-0-713">713</a></span>
-<span class="normal"><a href="#__codelineno-0-714">714</a></span>
-<span class="normal"><a href="#__codelineno-0-715">715</a></span>
-<span class="normal"><a href="#__codelineno-0-716">716</a></span>
-<span class="normal"><a href="#__codelineno-0-717">717</a></span>
-<span class="normal"><a href="#__codelineno-0-718">718</a></span>
-<span class="normal"><a href="#__codelineno-0-719">719</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-709" name="__codelineno-0-709"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-<a id="__codelineno-0-710" name="__codelineno-0-710"></a>    <span class="bp">self</span><span class="p">,</span>
-<a id="__codelineno-0-711" name="__codelineno-0-711"></a>    <span class="n">system</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-<a id="__codelineno-0-712" name="__codelineno-0-712"></a>    <span class="o">*</span><span class="p">,</span>
-<a id="__codelineno-0-713" name="__codelineno-0-713"></a>    <span class="n">adapter</span><span class="p">:</span> <span class="n">AsyncProviderAdapter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-714" name="__codelineno-0-714"></a>    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-715" name="__codelineno-0-715"></a>    <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
-<a id="__codelineno-0-716" name="__codelineno-0-716"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-717" name="__codelineno-0-717"></a>    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">system</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-<a id="__codelineno-0-718" name="__codelineno-0-718"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_adapter</span> <span class="o">=</span> <span class="n">adapter</span> <span class="k">if</span> <span class="n">adapter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_adapter</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
-<a id="__codelineno-0-719" name="__codelineno-0-719"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_harness</span><span class="p">:</span> <span class="n">AsyncHarness</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-807">807</a></span>
+<span class="normal"><a href="#__codelineno-0-808">808</a></span>
+<span class="normal"><a href="#__codelineno-0-809">809</a></span>
+<span class="normal"><a href="#__codelineno-0-810">810</a></span>
+<span class="normal"><a href="#__codelineno-0-811">811</a></span>
+<span class="normal"><a href="#__codelineno-0-812">812</a></span>
+<span class="normal"><a href="#__codelineno-0-813">813</a></span>
+<span class="normal"><a href="#__codelineno-0-814">814</a></span>
+<span class="normal"><a href="#__codelineno-0-815">815</a></span>
+<span class="normal"><a href="#__codelineno-0-816">816</a></span>
+<span class="normal"><a href="#__codelineno-0-817">817</a></span>
+<span class="normal"><a href="#__codelineno-0-818">818</a></span>
+<span class="normal"><a href="#__codelineno-0-819">819</a></span>
+<span class="normal"><a href="#__codelineno-0-820">820</a></span>
+<span class="normal"><a href="#__codelineno-0-821">821</a></span>
+<span class="normal"><a href="#__codelineno-0-822">822</a></span>
+<span class="normal"><a href="#__codelineno-0-823">823</a></span>
+<span class="normal"><a href="#__codelineno-0-824">824</a></span>
+<span class="normal"><a href="#__codelineno-0-825">825</a></span>
+<span class="normal"><a href="#__codelineno-0-826">826</a></span>
+<span class="normal"><a href="#__codelineno-0-827">827</a></span>
+<span class="normal"><a href="#__codelineno-0-828">828</a></span>
+<span class="normal"><a href="#__codelineno-0-829">829</a></span>
+<span class="normal"><a href="#__codelineno-0-830">830</a></span>
+<span class="normal"><a href="#__codelineno-0-831">831</a></span>
+<span class="normal"><a href="#__codelineno-0-832">832</a></span>
+<span class="normal"><a href="#__codelineno-0-833">833</a></span>
+<span class="normal"><a href="#__codelineno-0-834">834</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-807" name="__codelineno-0-807"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+<a id="__codelineno-0-808" name="__codelineno-0-808"></a>    <span class="bp">self</span><span class="p">,</span>
+<a id="__codelineno-0-809" name="__codelineno-0-809"></a>    <span class="n">system</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<a id="__codelineno-0-810" name="__codelineno-0-810"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-811" name="__codelineno-0-811"></a>    <span class="n">adapter</span><span class="p">:</span> <span class="n">AsyncProviderAdapter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-812" name="__codelineno-0-812"></a>    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-813" name="__codelineno-0-813"></a>    <span class="n">max_turns</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">25</span><span class="p">,</span>
+<a id="__codelineno-0-814" name="__codelineno-0-814"></a>    <span class="n">cache</span><span class="p">:</span> <span class="n">SessionCache</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-815" name="__codelineno-0-815"></a>    <span class="n">run_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-816" name="__codelineno-0-816"></a>    <span class="n">execution</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;inprocess&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-817" name="__codelineno-0-817"></a>    <span class="n">sandbox_options</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-818" name="__codelineno-0-818"></a>    <span class="n">on_code</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-819" name="__codelineno-0-819"></a>    <span class="n">code_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-820" name="__codelineno-0-820"></a>    <span class="n">hooks</span><span class="p">:</span> <span class="n">HookRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-821" name="__codelineno-0-821"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-822" name="__codelineno-0-822"></a>    <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+<a id="__codelineno-0-823" name="__codelineno-0-823"></a>        <span class="n">system</span><span class="p">,</span>
+<a id="__codelineno-0-824" name="__codelineno-0-824"></a>        <span class="n">max_turns</span><span class="o">=</span><span class="n">max_turns</span><span class="p">,</span>
+<a id="__codelineno-0-825" name="__codelineno-0-825"></a>        <span class="n">cache</span><span class="o">=</span><span class="n">cache</span><span class="p">,</span>
+<a id="__codelineno-0-826" name="__codelineno-0-826"></a>        <span class="n">run_dir</span><span class="o">=</span><span class="n">run_dir</span><span class="p">,</span>
+<a id="__codelineno-0-827" name="__codelineno-0-827"></a>        <span class="n">execution</span><span class="o">=</span><span class="n">execution</span><span class="p">,</span>
+<a id="__codelineno-0-828" name="__codelineno-0-828"></a>        <span class="n">sandbox_options</span><span class="o">=</span><span class="n">sandbox_options</span><span class="p">,</span>
+<a id="__codelineno-0-829" name="__codelineno-0-829"></a>        <span class="n">on_code</span><span class="o">=</span><span class="n">on_code</span><span class="p">,</span>
+<a id="__codelineno-0-830" name="__codelineno-0-830"></a>        <span class="n">code_only</span><span class="o">=</span><span class="n">code_only</span><span class="p">,</span>
+<a id="__codelineno-0-831" name="__codelineno-0-831"></a>        <span class="n">hooks</span><span class="o">=</span><span class="n">hooks</span><span class="p">,</span>
+<a id="__codelineno-0-832" name="__codelineno-0-832"></a>    <span class="p">)</span>
+<a id="__codelineno-0-833" name="__codelineno-0-833"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_adapter</span> <span class="o">=</span> <span class="n">adapter</span> <span class="k">if</span> <span class="n">adapter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_adapter</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+<a id="__codelineno-0-834" name="__codelineno-0-834"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_harness</span><span class="p">:</span> <span class="n">AsyncHarness</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
@@ -2339,11 +2607,11 @@ shortcut — see <code>Agent</code> for details; <code>adapter=</code> here must
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-745">745</a></span>
-<span class="normal"><a href="#__codelineno-0-746">746</a></span>
-<span class="normal"><a href="#__codelineno-0-747">747</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-745" name="__codelineno-0-745"></a><span class="k">def</span><span class="w"> </span><span class="nf">async_session</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncAgentSession</span><span class="p">:</span>
-<a id="__codelineno-0-746" name="__codelineno-0-746"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a stateful `AsyncAgentSession` for multi-turn conversations.&quot;&quot;&quot;</span>
-<a id="__codelineno-0-747" name="__codelineno-0-747"></a>    <span class="k">return</span> <span class="n">AsyncAgentSession</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-860">860</a></span>
+<span class="normal"><a href="#__codelineno-0-861">861</a></span>
+<span class="normal"><a href="#__codelineno-0-862">862</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-860" name="__codelineno-0-860"></a><span class="k">def</span><span class="w"> </span><span class="nf">async_session</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncAgentSession</span><span class="p">:</span>
+<a id="__codelineno-0-861" name="__codelineno-0-861"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a stateful `AsyncAgentSession` for multi-turn conversations.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-862" name="__codelineno-0-862"></a>    <span class="k">return</span> <span class="n">AsyncAgentSession</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2372,37 +2640,37 @@ shortcut — see <code>Agent</code> for details; <code>adapter=</code> here must
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-749">749</a></span>
-<span class="normal"><a href="#__codelineno-0-750">750</a></span>
-<span class="normal"><a href="#__codelineno-0-751">751</a></span>
-<span class="normal"><a href="#__codelineno-0-752">752</a></span>
-<span class="normal"><a href="#__codelineno-0-753">753</a></span>
-<span class="normal"><a href="#__codelineno-0-754">754</a></span>
-<span class="normal"><a href="#__codelineno-0-755">755</a></span>
-<span class="normal"><a href="#__codelineno-0-756">756</a></span>
-<span class="normal"><a href="#__codelineno-0-757">757</a></span>
-<span class="normal"><a href="#__codelineno-0-758">758</a></span>
-<span class="normal"><a href="#__codelineno-0-759">759</a></span>
-<span class="normal"><a href="#__codelineno-0-760">760</a></span>
-<span class="normal"><a href="#__codelineno-0-761">761</a></span>
-<span class="normal"><a href="#__codelineno-0-762">762</a></span>
-<span class="normal"><a href="#__codelineno-0-763">763</a></span>
-<span class="normal"><a href="#__codelineno-0-764">764</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-749" name="__codelineno-0-749"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResult</span><span class="p">:</span>
-<a id="__codelineno-0-750" name="__codelineno-0-750"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the agent and return the full `RunResult`.&quot;&quot;&quot;</span>
-<a id="__codelineno-0-751" name="__codelineno-0-751"></a>    <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay_key</span><span class="p">(</span><span class="n">user_message</span><span class="p">)</span>
-<a id="__codelineno-0-752" name="__codelineno-0-752"></a>    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-753" name="__codelineno-0-753"></a>        <span class="n">cached</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exec_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-<a id="__codelineno-0-754" name="__codelineno-0-754"></a>        <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-755" name="__codelineno-0-755"></a>            <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
-<a id="__codelineno-0-756" name="__codelineno-0-756"></a>
-<a id="__codelineno-0-757" name="__codelineno-0-757"></a>    <span class="n">harness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_harness</span><span class="p">()</span>
-<a id="__codelineno-0-758" name="__codelineno-0-758"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_harness</span> <span class="o">=</span> <span class="n">harness</span>
-<a id="__codelineno-0-759" name="__codelineno-0-759"></a>    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">harness</span><span class="o">.</span><span class="n">run_result</span><span class="p">(</span>
-<a id="__codelineno-0-760" name="__codelineno-0-760"></a>        <span class="n">user_message</span><span class="p">,</span> <span class="n">run_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()),</span> <span class="n">session_id</span><span class="o">=</span><span class="kc">None</span>
-<a id="__codelineno-0-761" name="__codelineno-0-761"></a>    <span class="p">)</span>
-<a id="__codelineno-0-762" name="__codelineno-0-762"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_result</span> <span class="o">=</span> <span class="n">result</span>
-<a id="__codelineno-0-763" name="__codelineno-0-763"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_record_replay</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">harness</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
-<a id="__codelineno-0-764" name="__codelineno-0-764"></a>    <span class="k">return</span> <span class="n">result</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-864">864</a></span>
+<span class="normal"><a href="#__codelineno-0-865">865</a></span>
+<span class="normal"><a href="#__codelineno-0-866">866</a></span>
+<span class="normal"><a href="#__codelineno-0-867">867</a></span>
+<span class="normal"><a href="#__codelineno-0-868">868</a></span>
+<span class="normal"><a href="#__codelineno-0-869">869</a></span>
+<span class="normal"><a href="#__codelineno-0-870">870</a></span>
+<span class="normal"><a href="#__codelineno-0-871">871</a></span>
+<span class="normal"><a href="#__codelineno-0-872">872</a></span>
+<span class="normal"><a href="#__codelineno-0-873">873</a></span>
+<span class="normal"><a href="#__codelineno-0-874">874</a></span>
+<span class="normal"><a href="#__codelineno-0-875">875</a></span>
+<span class="normal"><a href="#__codelineno-0-876">876</a></span>
+<span class="normal"><a href="#__codelineno-0-877">877</a></span>
+<span class="normal"><a href="#__codelineno-0-878">878</a></span>
+<span class="normal"><a href="#__codelineno-0-879">879</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-864" name="__codelineno-0-864"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResult</span><span class="p">:</span>
+<a id="__codelineno-0-865" name="__codelineno-0-865"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the agent and return the full `RunResult`.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-866" name="__codelineno-0-866"></a>    <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay_key</span><span class="p">(</span><span class="n">user_message</span><span class="p">)</span>
+<a id="__codelineno-0-867" name="__codelineno-0-867"></a>    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-868" name="__codelineno-0-868"></a>        <span class="n">cached</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exec_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+<a id="__codelineno-0-869" name="__codelineno-0-869"></a>        <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-870" name="__codelineno-0-870"></a>            <span class="k">return</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
+<a id="__codelineno-0-871" name="__codelineno-0-871"></a>
+<a id="__codelineno-0-872" name="__codelineno-0-872"></a>    <span class="n">harness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_harness</span><span class="p">()</span>
+<a id="__codelineno-0-873" name="__codelineno-0-873"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_harness</span> <span class="o">=</span> <span class="n">harness</span>
+<a id="__codelineno-0-874" name="__codelineno-0-874"></a>    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">harness</span><span class="o">.</span><span class="n">run_result</span><span class="p">(</span>
+<a id="__codelineno-0-875" name="__codelineno-0-875"></a>        <span class="n">user_message</span><span class="p">,</span> <span class="n">run_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()),</span> <span class="n">session_id</span><span class="o">=</span><span class="kc">None</span>
+<a id="__codelineno-0-876" name="__codelineno-0-876"></a>    <span class="p">)</span>
+<a id="__codelineno-0-877" name="__codelineno-0-877"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_result</span> <span class="o">=</span> <span class="n">result</span>
+<a id="__codelineno-0-878" name="__codelineno-0-878"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_record_replay</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">harness</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+<a id="__codelineno-0-879" name="__codelineno-0-879"></a>    <span class="k">return</span> <span class="n">result</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2464,21 +2732,21 @@ shortcut — see <code>Agent</code> for details; <code>adapter=</code> here must
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-766">766</a></span>
-<span class="normal"><a href="#__codelineno-0-767">767</a></span>
-<span class="normal"><a href="#__codelineno-0-768">768</a></span>
-<span class="normal"><a href="#__codelineno-0-769">769</a></span>
-<span class="normal"><a href="#__codelineno-0-770">770</a></span>
-<span class="normal"><a href="#__codelineno-0-771">771</a></span>
-<span class="normal"><a href="#__codelineno-0-772">772</a></span>
-<span class="normal"><a href="#__codelineno-0-773">773</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-766" name="__codelineno-0-766"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-0-767" name="__codelineno-0-767"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the agent and return the final text response.</span>
-<a id="__codelineno-0-768" name="__codelineno-0-768"></a>
-<a id="__codelineno-0-769" name="__codelineno-0-769"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-770" name="__codelineno-0-770"></a><span class="sd">        MaxTurnsExceeded: If the loop reaches ``max_turns``.</span>
-<a id="__codelineno-0-771" name="__codelineno-0-771"></a><span class="sd">        RuntimeError: If the provider raises an exception.</span>
-<a id="__codelineno-0-772" name="__codelineno-0-772"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-773" name="__codelineno-0-773"></a>    <span class="k">return</span> <span class="n">unwrap_text</span><span class="p">(</span><span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_result</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-881">881</a></span>
+<span class="normal"><a href="#__codelineno-0-882">882</a></span>
+<span class="normal"><a href="#__codelineno-0-883">883</a></span>
+<span class="normal"><a href="#__codelineno-0-884">884</a></span>
+<span class="normal"><a href="#__codelineno-0-885">885</a></span>
+<span class="normal"><a href="#__codelineno-0-886">886</a></span>
+<span class="normal"><a href="#__codelineno-0-887">887</a></span>
+<span class="normal"><a href="#__codelineno-0-888">888</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-881" name="__codelineno-0-881"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-0-882" name="__codelineno-0-882"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Run the agent and return the final text response.</span>
+<a id="__codelineno-0-883" name="__codelineno-0-883"></a>
+<a id="__codelineno-0-884" name="__codelineno-0-884"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-885" name="__codelineno-0-885"></a><span class="sd">        MaxTurnsExceeded: If the loop reaches ``max_turns``.</span>
+<a id="__codelineno-0-886" name="__codelineno-0-886"></a><span class="sd">        RuntimeError: If the provider raises an exception.</span>
+<a id="__codelineno-0-887" name="__codelineno-0-887"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-888" name="__codelineno-0-888"></a>    <span class="k">return</span> <span class="n">unwrap_text</span><span class="p">(</span><span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">run_result</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2525,95 +2793,95 @@ non-streaming one would.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-775">775</a></span>
-<span class="normal"><a href="#__codelineno-0-776">776</a></span>
-<span class="normal"><a href="#__codelineno-0-777">777</a></span>
-<span class="normal"><a href="#__codelineno-0-778">778</a></span>
-<span class="normal"><a href="#__codelineno-0-779">779</a></span>
-<span class="normal"><a href="#__codelineno-0-780">780</a></span>
-<span class="normal"><a href="#__codelineno-0-781">781</a></span>
-<span class="normal"><a href="#__codelineno-0-782">782</a></span>
-<span class="normal"><a href="#__codelineno-0-783">783</a></span>
-<span class="normal"><a href="#__codelineno-0-784">784</a></span>
-<span class="normal"><a href="#__codelineno-0-785">785</a></span>
-<span class="normal"><a href="#__codelineno-0-786">786</a></span>
-<span class="normal"><a href="#__codelineno-0-787">787</a></span>
-<span class="normal"><a href="#__codelineno-0-788">788</a></span>
-<span class="normal"><a href="#__codelineno-0-789">789</a></span>
-<span class="normal"><a href="#__codelineno-0-790">790</a></span>
-<span class="normal"><a href="#__codelineno-0-791">791</a></span>
-<span class="normal"><a href="#__codelineno-0-792">792</a></span>
-<span class="normal"><a href="#__codelineno-0-793">793</a></span>
-<span class="normal"><a href="#__codelineno-0-794">794</a></span>
-<span class="normal"><a href="#__codelineno-0-795">795</a></span>
-<span class="normal"><a href="#__codelineno-0-796">796</a></span>
-<span class="normal"><a href="#__codelineno-0-797">797</a></span>
-<span class="normal"><a href="#__codelineno-0-798">798</a></span>
-<span class="normal"><a href="#__codelineno-0-799">799</a></span>
-<span class="normal"><a href="#__codelineno-0-800">800</a></span>
-<span class="normal"><a href="#__codelineno-0-801">801</a></span>
-<span class="normal"><a href="#__codelineno-0-802">802</a></span>
-<span class="normal"><a href="#__codelineno-0-803">803</a></span>
-<span class="normal"><a href="#__codelineno-0-804">804</a></span>
-<span class="normal"><a href="#__codelineno-0-805">805</a></span>
-<span class="normal"><a href="#__codelineno-0-806">806</a></span>
-<span class="normal"><a href="#__codelineno-0-807">807</a></span>
-<span class="normal"><a href="#__codelineno-0-808">808</a></span>
-<span class="normal"><a href="#__codelineno-0-809">809</a></span>
-<span class="normal"><a href="#__codelineno-0-810">810</a></span>
-<span class="normal"><a href="#__codelineno-0-811">811</a></span>
-<span class="normal"><a href="#__codelineno-0-812">812</a></span>
-<span class="normal"><a href="#__codelineno-0-813">813</a></span>
-<span class="normal"><a href="#__codelineno-0-814">814</a></span>
-<span class="normal"><a href="#__codelineno-0-815">815</a></span>
-<span class="normal"><a href="#__codelineno-0-816">816</a></span>
-<span class="normal"><a href="#__codelineno-0-817">817</a></span>
-<span class="normal"><a href="#__codelineno-0-818">818</a></span>
-<span class="normal"><a href="#__codelineno-0-819">819</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-775" name="__codelineno-0-775"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">StreamEvent</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
-<a id="__codelineno-0-776" name="__codelineno-0-776"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Stream events for a one-shot run.</span>
-<a id="__codelineno-0-777" name="__codelineno-0-777"></a>
-<a id="__codelineno-0-778" name="__codelineno-0-778"></a><span class="sd">    Yields StreamEvent objects (message_start, content_block_*, message_delta,</span>
-<a id="__codelineno-0-779" name="__codelineno-0-779"></a><span class="sd">    message_stop, tool_result) following the Claude Agent SDK protocol.</span>
-<a id="__codelineno-0-780" name="__codelineno-0-780"></a>
-<a id="__codelineno-0-781" name="__codelineno-0-781"></a><span class="sd">    After the generator is exhausted, ``agent.last_result`` holds the</span>
-<a id="__codelineno-0-782" name="__codelineno-0-782"></a><span class="sd">    `RunResult` for the run, including token usage. Read it there rather</span>
-<a id="__codelineno-0-783" name="__codelineno-0-783"></a><span class="sd">    than through ``last_harness``: a replay-cache hit builds no harness, so</span>
-<a id="__codelineno-0-784" name="__codelineno-0-784"></a><span class="sd">    ``last_harness`` is either ``None`` or left over from an earlier run.</span>
-<a id="__codelineno-0-785" name="__codelineno-0-785"></a>
-<a id="__codelineno-0-786" name="__codelineno-0-786"></a><span class="sd">    A cache hit yields the cached answer as a single synthetic text block</span>
-<a id="__codelineno-0-787" name="__codelineno-0-787"></a><span class="sd">    and reports zero usage, so a streaming caller sees the same answer a</span>
-<a id="__codelineno-0-788" name="__codelineno-0-788"></a><span class="sd">    non-streaming one would.</span>
-<a id="__codelineno-0-789" name="__codelineno-0-789"></a>
-<a id="__codelineno-0-790" name="__codelineno-0-790"></a><span class="sd">    Usage::</span>
-<a id="__codelineno-0-791" name="__codelineno-0-791"></a>
-<a id="__codelineno-0-792" name="__codelineno-0-792"></a><span class="sd">        async for event in agent.run_stream(&quot;hello&quot;):</span>
-<a id="__codelineno-0-793" name="__codelineno-0-793"></a><span class="sd">            if event.type == &quot;content_block_delta&quot;:</span>
-<a id="__codelineno-0-794" name="__codelineno-0-794"></a><span class="sd">                from data_harness.llm.streaming import TextDelta</span>
-<a id="__codelineno-0-795" name="__codelineno-0-795"></a><span class="sd">                if isinstance(event.delta, TextDelta):</span>
-<a id="__codelineno-0-796" name="__codelineno-0-796"></a><span class="sd">                    print(event.delta.text, end=&quot;&quot;, flush=True)</span>
-<a id="__codelineno-0-797" name="__codelineno-0-797"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-798" name="__codelineno-0-798"></a>    <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay_key</span><span class="p">(</span><span class="n">user_message</span><span class="p">)</span>
-<a id="__codelineno-0-799" name="__codelineno-0-799"></a>    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-800" name="__codelineno-0-800"></a>        <span class="n">cached</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exec_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-<a id="__codelineno-0-801" name="__codelineno-0-801"></a>        <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-802" name="__codelineno-0-802"></a>            <span class="c1"># `_replay` mints its own run id; nothing here to stamp.</span>
-<a id="__codelineno-0-803" name="__codelineno-0-803"></a>            <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
-<a id="__codelineno-0-804" name="__codelineno-0-804"></a>            <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">_synthetic_text_events</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="p">):</span>
-<a id="__codelineno-0-805" name="__codelineno-0-805"></a>                <span class="k">yield</span> <span class="n">event</span>
-<a id="__codelineno-0-806" name="__codelineno-0-806"></a>            <span class="k">return</span>
-<a id="__codelineno-0-807" name="__codelineno-0-807"></a>
-<a id="__codelineno-0-808" name="__codelineno-0-808"></a>    <span class="n">run_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
-<a id="__codelineno-0-809" name="__codelineno-0-809"></a>    <span class="n">harness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_harness</span><span class="p">()</span>
-<a id="__codelineno-0-810" name="__codelineno-0-810"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_harness</span> <span class="o">=</span> <span class="n">harness</span>
-<a id="__codelineno-0-811" name="__codelineno-0-811"></a>    <span class="c1"># `aclosing`, not a bare `async for`: closing this generator does not</span>
-<a id="__codelineno-0-812" name="__codelineno-0-812"></a>    <span class="c1"># close the one it iterates, so abandoning the stream here would leave</span>
-<a id="__codelineno-0-813" name="__codelineno-0-813"></a>    <span class="c1"># the harness (and the provider&#39;s HTTP stream) suspended.</span>
-<a id="__codelineno-0-814" name="__codelineno-0-814"></a>    <span class="k">async</span> <span class="k">with</span> <span class="n">aclosing</span><span class="p">(</span><span class="n">harness</span><span class="o">.</span><span class="n">run_stream</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span> <span class="k">as</span> <span class="n">events</span><span class="p">:</span>
-<a id="__codelineno-0-815" name="__codelineno-0-815"></a>        <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">events</span><span class="p">:</span>
-<a id="__codelineno-0-816" name="__codelineno-0-816"></a>            <span class="k">yield</span> <span class="n">event</span>
-<a id="__codelineno-0-817" name="__codelineno-0-817"></a>    <span class="k">if</span> <span class="n">harness</span><span class="o">.</span><span class="n">last_result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-818" name="__codelineno-0-818"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_last_result</span> <span class="o">=</span> <span class="n">harness</span><span class="o">.</span><span class="n">_stamp</span><span class="p">(</span><span class="n">harness</span><span class="o">.</span><span class="n">last_result</span><span class="p">,</span> <span class="n">run_id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-<a id="__codelineno-0-819" name="__codelineno-0-819"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_record_replay</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">harness</span><span class="p">,</span> <span class="n">harness</span><span class="o">.</span><span class="n">last_result</span><span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-890">890</a></span>
+<span class="normal"><a href="#__codelineno-0-891">891</a></span>
+<span class="normal"><a href="#__codelineno-0-892">892</a></span>
+<span class="normal"><a href="#__codelineno-0-893">893</a></span>
+<span class="normal"><a href="#__codelineno-0-894">894</a></span>
+<span class="normal"><a href="#__codelineno-0-895">895</a></span>
+<span class="normal"><a href="#__codelineno-0-896">896</a></span>
+<span class="normal"><a href="#__codelineno-0-897">897</a></span>
+<span class="normal"><a href="#__codelineno-0-898">898</a></span>
+<span class="normal"><a href="#__codelineno-0-899">899</a></span>
+<span class="normal"><a href="#__codelineno-0-900">900</a></span>
+<span class="normal"><a href="#__codelineno-0-901">901</a></span>
+<span class="normal"><a href="#__codelineno-0-902">902</a></span>
+<span class="normal"><a href="#__codelineno-0-903">903</a></span>
+<span class="normal"><a href="#__codelineno-0-904">904</a></span>
+<span class="normal"><a href="#__codelineno-0-905">905</a></span>
+<span class="normal"><a href="#__codelineno-0-906">906</a></span>
+<span class="normal"><a href="#__codelineno-0-907">907</a></span>
+<span class="normal"><a href="#__codelineno-0-908">908</a></span>
+<span class="normal"><a href="#__codelineno-0-909">909</a></span>
+<span class="normal"><a href="#__codelineno-0-910">910</a></span>
+<span class="normal"><a href="#__codelineno-0-911">911</a></span>
+<span class="normal"><a href="#__codelineno-0-912">912</a></span>
+<span class="normal"><a href="#__codelineno-0-913">913</a></span>
+<span class="normal"><a href="#__codelineno-0-914">914</a></span>
+<span class="normal"><a href="#__codelineno-0-915">915</a></span>
+<span class="normal"><a href="#__codelineno-0-916">916</a></span>
+<span class="normal"><a href="#__codelineno-0-917">917</a></span>
+<span class="normal"><a href="#__codelineno-0-918">918</a></span>
+<span class="normal"><a href="#__codelineno-0-919">919</a></span>
+<span class="normal"><a href="#__codelineno-0-920">920</a></span>
+<span class="normal"><a href="#__codelineno-0-921">921</a></span>
+<span class="normal"><a href="#__codelineno-0-922">922</a></span>
+<span class="normal"><a href="#__codelineno-0-923">923</a></span>
+<span class="normal"><a href="#__codelineno-0-924">924</a></span>
+<span class="normal"><a href="#__codelineno-0-925">925</a></span>
+<span class="normal"><a href="#__codelineno-0-926">926</a></span>
+<span class="normal"><a href="#__codelineno-0-927">927</a></span>
+<span class="normal"><a href="#__codelineno-0-928">928</a></span>
+<span class="normal"><a href="#__codelineno-0-929">929</a></span>
+<span class="normal"><a href="#__codelineno-0-930">930</a></span>
+<span class="normal"><a href="#__codelineno-0-931">931</a></span>
+<span class="normal"><a href="#__codelineno-0-932">932</a></span>
+<span class="normal"><a href="#__codelineno-0-933">933</a></span>
+<span class="normal"><a href="#__codelineno-0-934">934</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-890" name="__codelineno-0-890"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">StreamEvent</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+<a id="__codelineno-0-891" name="__codelineno-0-891"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Stream events for a one-shot run.</span>
+<a id="__codelineno-0-892" name="__codelineno-0-892"></a>
+<a id="__codelineno-0-893" name="__codelineno-0-893"></a><span class="sd">    Yields StreamEvent objects (message_start, content_block_*, message_delta,</span>
+<a id="__codelineno-0-894" name="__codelineno-0-894"></a><span class="sd">    message_stop, tool_result) following the Claude Agent SDK protocol.</span>
+<a id="__codelineno-0-895" name="__codelineno-0-895"></a>
+<a id="__codelineno-0-896" name="__codelineno-0-896"></a><span class="sd">    After the generator is exhausted, ``agent.last_result`` holds the</span>
+<a id="__codelineno-0-897" name="__codelineno-0-897"></a><span class="sd">    `RunResult` for the run, including token usage. Read it there rather</span>
+<a id="__codelineno-0-898" name="__codelineno-0-898"></a><span class="sd">    than through ``last_harness``: a replay-cache hit builds no harness, so</span>
+<a id="__codelineno-0-899" name="__codelineno-0-899"></a><span class="sd">    ``last_harness`` is either ``None`` or left over from an earlier run.</span>
+<a id="__codelineno-0-900" name="__codelineno-0-900"></a>
+<a id="__codelineno-0-901" name="__codelineno-0-901"></a><span class="sd">    A cache hit yields the cached answer as a single synthetic text block</span>
+<a id="__codelineno-0-902" name="__codelineno-0-902"></a><span class="sd">    and reports zero usage, so a streaming caller sees the same answer a</span>
+<a id="__codelineno-0-903" name="__codelineno-0-903"></a><span class="sd">    non-streaming one would.</span>
+<a id="__codelineno-0-904" name="__codelineno-0-904"></a>
+<a id="__codelineno-0-905" name="__codelineno-0-905"></a><span class="sd">    Usage::</span>
+<a id="__codelineno-0-906" name="__codelineno-0-906"></a>
+<a id="__codelineno-0-907" name="__codelineno-0-907"></a><span class="sd">        async for event in agent.run_stream(&quot;hello&quot;):</span>
+<a id="__codelineno-0-908" name="__codelineno-0-908"></a><span class="sd">            if event.type == &quot;content_block_delta&quot;:</span>
+<a id="__codelineno-0-909" name="__codelineno-0-909"></a><span class="sd">                from data_harness.llm.streaming import TextDelta</span>
+<a id="__codelineno-0-910" name="__codelineno-0-910"></a><span class="sd">                if isinstance(event.delta, TextDelta):</span>
+<a id="__codelineno-0-911" name="__codelineno-0-911"></a><span class="sd">                    print(event.delta.text, end=&quot;&quot;, flush=True)</span>
+<a id="__codelineno-0-912" name="__codelineno-0-912"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-913" name="__codelineno-0-913"></a>    <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay_key</span><span class="p">(</span><span class="n">user_message</span><span class="p">)</span>
+<a id="__codelineno-0-914" name="__codelineno-0-914"></a>    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-915" name="__codelineno-0-915"></a>        <span class="n">cached</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exec_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+<a id="__codelineno-0-916" name="__codelineno-0-916"></a>        <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-917" name="__codelineno-0-917"></a>            <span class="c1"># `_replay` mints its own run id; nothing here to stamp.</span>
+<a id="__codelineno-0-918" name="__codelineno-0-918"></a>            <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_replay</span><span class="p">(</span><span class="n">cached</span><span class="p">)</span>
+<a id="__codelineno-0-919" name="__codelineno-0-919"></a>            <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">_synthetic_text_events</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="p">):</span>
+<a id="__codelineno-0-920" name="__codelineno-0-920"></a>                <span class="k">yield</span> <span class="n">event</span>
+<a id="__codelineno-0-921" name="__codelineno-0-921"></a>            <span class="k">return</span>
+<a id="__codelineno-0-922" name="__codelineno-0-922"></a>
+<a id="__codelineno-0-923" name="__codelineno-0-923"></a>    <span class="n">run_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
+<a id="__codelineno-0-924" name="__codelineno-0-924"></a>    <span class="n">harness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_make_harness</span><span class="p">()</span>
+<a id="__codelineno-0-925" name="__codelineno-0-925"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_harness</span> <span class="o">=</span> <span class="n">harness</span>
+<a id="__codelineno-0-926" name="__codelineno-0-926"></a>    <span class="c1"># `aclosing`, not a bare `async for`: closing this generator does not</span>
+<a id="__codelineno-0-927" name="__codelineno-0-927"></a>    <span class="c1"># close the one it iterates, so abandoning the stream here would leave</span>
+<a id="__codelineno-0-928" name="__codelineno-0-928"></a>    <span class="c1"># the harness (and the provider&#39;s HTTP stream) suspended.</span>
+<a id="__codelineno-0-929" name="__codelineno-0-929"></a>    <span class="k">async</span> <span class="k">with</span> <span class="n">aclosing</span><span class="p">(</span><span class="n">harness</span><span class="o">.</span><span class="n">run_stream</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span> <span class="k">as</span> <span class="n">events</span><span class="p">:</span>
+<a id="__codelineno-0-930" name="__codelineno-0-930"></a>        <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">events</span><span class="p">:</span>
+<a id="__codelineno-0-931" name="__codelineno-0-931"></a>            <span class="k">yield</span> <span class="n">event</span>
+<a id="__codelineno-0-932" name="__codelineno-0-932"></a>    <span class="k">if</span> <span class="n">harness</span><span class="o">.</span><span class="n">last_result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-933" name="__codelineno-0-933"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_last_result</span> <span class="o">=</span> <span class="n">harness</span><span class="o">.</span><span class="n">_stamp</span><span class="p">(</span><span class="n">harness</span><span class="o">.</span><span class="n">last_result</span><span class="p">,</span> <span class="n">run_id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-0-934" name="__codelineno-0-934"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_record_replay</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">harness</span><span class="p">,</span> <span class="n">harness</span><span class="o">.</span><span class="n">last_result</span><span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2659,39 +2927,39 @@ non-streaming one would.</p>
 
                   <details class="mkdocstrings-source">
                     <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-842">842</a></span>
-<span class="normal"><a href="#__codelineno-0-843">843</a></span>
-<span class="normal"><a href="#__codelineno-0-844">844</a></span>
-<span class="normal"><a href="#__codelineno-0-845">845</a></span>
-<span class="normal"><a href="#__codelineno-0-846">846</a></span>
-<span class="normal"><a href="#__codelineno-0-847">847</a></span>
-<span class="normal"><a href="#__codelineno-0-848">848</a></span>
-<span class="normal"><a href="#__codelineno-0-849">849</a></span>
-<span class="normal"><a href="#__codelineno-0-850">850</a></span>
-<span class="normal"><a href="#__codelineno-0-851">851</a></span>
-<span class="normal"><a href="#__codelineno-0-852">852</a></span>
-<span class="normal"><a href="#__codelineno-0-853">853</a></span>
-<span class="normal"><a href="#__codelineno-0-854">854</a></span>
-<span class="normal"><a href="#__codelineno-0-855">855</a></span>
-<span class="normal"><a href="#__codelineno-0-856">856</a></span>
-<span class="normal"><a href="#__codelineno-0-857">857</a></span>
-<span class="normal"><a href="#__codelineno-0-858">858</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-842" name="__codelineno-0-842"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">agent</span><span class="p">:</span> <span class="n">_AgentBase</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-843" name="__codelineno-0-843"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_agent</span> <span class="o">=</span> <span class="n">agent</span>
-<a id="__codelineno-0-844" name="__codelineno-0-844"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="n">SessionCache</span><span class="p">(</span>
-<a id="__codelineno-0-845" name="__codelineno-0-845"></a>        <span class="n">sample_size</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">sample_size</span><span class="p">,</span>
-<a id="__codelineno-0-846" name="__codelineno-0-846"></a>        <span class="n">storage_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-<a id="__codelineno-0-847" name="__codelineno-0-847"></a>        <span class="n">hot_limit</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">hot_limit</span><span class="p">,</span>
-<a id="__codelineno-0-848" name="__codelineno-0-848"></a>    <span class="p">)</span>
-<a id="__codelineno-0-849" name="__codelineno-0-849"></a>    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-<a id="__codelineno-0-850" name="__codelineno-0-850"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">put</span><span class="p">(</span>
-<a id="__codelineno-0-851" name="__codelineno-0-851"></a>            <span class="n">name</span><span class="p">,</span>
-<a id="__codelineno-0-852" name="__codelineno-0-852"></a>            <span class="n">_copy_cache_value</span><span class="p">(</span><span class="n">value</span><span class="p">),</span>
-<a id="__codelineno-0-853" name="__codelineno-0-853"></a>            <span class="n">semantics</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">get_semantics</span><span class="p">(</span><span class="n">name</span><span class="p">),</span>
-<a id="__codelineno-0-854" name="__codelineno-0-854"></a>        <span class="p">)</span>
-<a id="__codelineno-0-855" name="__codelineno-0-855"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">_make_harness</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">)</span>  <span class="c1"># type: ignore[attr-defined]</span>
-<a id="__codelineno-0-856" name="__codelineno-0-856"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
-<a id="__codelineno-0-857" name="__codelineno-0-857"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_result</span><span class="p">:</span> <span class="n">RunResult</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-0-858" name="__codelineno-0-858"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_turns</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+                    <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-957">957</a></span>
+<span class="normal"><a href="#__codelineno-0-958">958</a></span>
+<span class="normal"><a href="#__codelineno-0-959">959</a></span>
+<span class="normal"><a href="#__codelineno-0-960">960</a></span>
+<span class="normal"><a href="#__codelineno-0-961">961</a></span>
+<span class="normal"><a href="#__codelineno-0-962">962</a></span>
+<span class="normal"><a href="#__codelineno-0-963">963</a></span>
+<span class="normal"><a href="#__codelineno-0-964">964</a></span>
+<span class="normal"><a href="#__codelineno-0-965">965</a></span>
+<span class="normal"><a href="#__codelineno-0-966">966</a></span>
+<span class="normal"><a href="#__codelineno-0-967">967</a></span>
+<span class="normal"><a href="#__codelineno-0-968">968</a></span>
+<span class="normal"><a href="#__codelineno-0-969">969</a></span>
+<span class="normal"><a href="#__codelineno-0-970">970</a></span>
+<span class="normal"><a href="#__codelineno-0-971">971</a></span>
+<span class="normal"><a href="#__codelineno-0-972">972</a></span>
+<span class="normal"><a href="#__codelineno-0-973">973</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-957" name="__codelineno-0-957"></a><span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">agent</span><span class="p">:</span> <span class="n">_AgentBase</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-958" name="__codelineno-0-958"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_agent</span> <span class="o">=</span> <span class="n">agent</span>
+<a id="__codelineno-0-959" name="__codelineno-0-959"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span> <span class="o">=</span> <span class="n">SessionCache</span><span class="p">(</span>
+<a id="__codelineno-0-960" name="__codelineno-0-960"></a>        <span class="n">sample_size</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">sample_size</span><span class="p">,</span>
+<a id="__codelineno-0-961" name="__codelineno-0-961"></a>        <span class="n">storage_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-962" name="__codelineno-0-962"></a>        <span class="n">hot_limit</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">hot_limit</span><span class="p">,</span>
+<a id="__codelineno-0-963" name="__codelineno-0-963"></a>    <span class="p">)</span>
+<a id="__codelineno-0-964" name="__codelineno-0-964"></a>    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-0-965" name="__codelineno-0-965"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="o">.</span><span class="n">put</span><span class="p">(</span>
+<a id="__codelineno-0-966" name="__codelineno-0-966"></a>            <span class="n">name</span><span class="p">,</span>
+<a id="__codelineno-0-967" name="__codelineno-0-967"></a>            <span class="n">_copy_cache_value</span><span class="p">(</span><span class="n">value</span><span class="p">),</span>
+<a id="__codelineno-0-968" name="__codelineno-0-968"></a>            <span class="n">semantics</span><span class="o">=</span><span class="n">agent</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">get_semantics</span><span class="p">(</span><span class="n">name</span><span class="p">),</span>
+<a id="__codelineno-0-969" name="__codelineno-0-969"></a>        <span class="p">)</span>
+<a id="__codelineno-0-970" name="__codelineno-0-970"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span> <span class="o">=</span> <span class="n">agent</span><span class="o">.</span><span class="n">_make_harness</span><span class="p">(</span><span class="n">cache</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">)</span>  <span class="c1"># type: ignore[attr-defined]</span>
+<a id="__codelineno-0-971" name="__codelineno-0-971"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
+<a id="__codelineno-0-972" name="__codelineno-0-972"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_last_result</span><span class="p">:</span> <span class="n">RunResult</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-973" name="__codelineno-0-973"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_turns</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
 </code></pre></div></td></tr></table></div>
                   </details>
 
@@ -2730,19 +2998,19 @@ non-streaming one would.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-951">951</a></span>
-<span class="normal"><a href="#__codelineno-0-952">952</a></span>
-<span class="normal"><a href="#__codelineno-0-953">953</a></span>
-<span class="normal"><a href="#__codelineno-0-954">954</a></span>
-<span class="normal"><a href="#__codelineno-0-955">955</a></span>
-<span class="normal"><a href="#__codelineno-0-956">956</a></span>
-<span class="normal"><a href="#__codelineno-0-957">957</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-951" name="__codelineno-0-951"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ask_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResult</span><span class="p">:</span>
-<a id="__codelineno-0-952" name="__codelineno-0-952"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Send a follow-up message and return the full `RunResult`.&quot;&quot;&quot;</span>
-<a id="__codelineno-0-953" name="__codelineno-0-953"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record</span><span class="p">(</span>
-<a id="__codelineno-0-954" name="__codelineno-0-954"></a>        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span><span class="o">.</span><span class="n">ask_result</span><span class="p">(</span>
-<a id="__codelineno-0-955" name="__codelineno-0-955"></a>            <span class="n">user_message</span><span class="p">,</span> <span class="n">run_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()),</span> <span class="n">session_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_id</span>
-<a id="__codelineno-0-956" name="__codelineno-0-956"></a>        <span class="p">)</span>
-<a id="__codelineno-0-957" name="__codelineno-0-957"></a>    <span class="p">)</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1066">1066</a></span>
+<span class="normal"><a href="#__codelineno-0-1067">1067</a></span>
+<span class="normal"><a href="#__codelineno-0-1068">1068</a></span>
+<span class="normal"><a href="#__codelineno-0-1069">1069</a></span>
+<span class="normal"><a href="#__codelineno-0-1070">1070</a></span>
+<span class="normal"><a href="#__codelineno-0-1071">1071</a></span>
+<span class="normal"><a href="#__codelineno-0-1072">1072</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1066" name="__codelineno-0-1066"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ask_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResult</span><span class="p">:</span>
+<a id="__codelineno-0-1067" name="__codelineno-0-1067"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Send a follow-up message and return the full `RunResult`.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-1068" name="__codelineno-0-1068"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record</span><span class="p">(</span>
+<a id="__codelineno-0-1069" name="__codelineno-0-1069"></a>        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span><span class="o">.</span><span class="n">ask_result</span><span class="p">(</span>
+<a id="__codelineno-0-1070" name="__codelineno-0-1070"></a>            <span class="n">user_message</span><span class="p">,</span> <span class="n">run_id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()),</span> <span class="n">session_id</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_id</span>
+<a id="__codelineno-0-1071" name="__codelineno-0-1071"></a>        <span class="p">)</span>
+<a id="__codelineno-0-1072" name="__codelineno-0-1072"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2804,21 +3072,21 @@ non-streaming one would.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-959">959</a></span>
-<span class="normal"><a href="#__codelineno-0-960">960</a></span>
-<span class="normal"><a href="#__codelineno-0-961">961</a></span>
-<span class="normal"><a href="#__codelineno-0-962">962</a></span>
-<span class="normal"><a href="#__codelineno-0-963">963</a></span>
-<span class="normal"><a href="#__codelineno-0-964">964</a></span>
-<span class="normal"><a href="#__codelineno-0-965">965</a></span>
-<span class="normal"><a href="#__codelineno-0-966">966</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-959" name="__codelineno-0-959"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<a id="__codelineno-0-960" name="__codelineno-0-960"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Send a follow-up message and return the final text response.</span>
-<a id="__codelineno-0-961" name="__codelineno-0-961"></a>
-<a id="__codelineno-0-962" name="__codelineno-0-962"></a><span class="sd">    Raises:</span>
-<a id="__codelineno-0-963" name="__codelineno-0-963"></a><span class="sd">        MaxTurnsExceeded: If the loop reaches ``max_turns``.</span>
-<a id="__codelineno-0-964" name="__codelineno-0-964"></a><span class="sd">        RuntimeError: If the provider raises an exception.</span>
-<a id="__codelineno-0-965" name="__codelineno-0-965"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-966" name="__codelineno-0-966"></a>    <span class="k">return</span> <span class="n">unwrap_text</span><span class="p">(</span><span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">ask_result</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1074">1074</a></span>
+<span class="normal"><a href="#__codelineno-0-1075">1075</a></span>
+<span class="normal"><a href="#__codelineno-0-1076">1076</a></span>
+<span class="normal"><a href="#__codelineno-0-1077">1077</a></span>
+<span class="normal"><a href="#__codelineno-0-1078">1078</a></span>
+<span class="normal"><a href="#__codelineno-0-1079">1079</a></span>
+<span class="normal"><a href="#__codelineno-0-1080">1080</a></span>
+<span class="normal"><a href="#__codelineno-0-1081">1081</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1074" name="__codelineno-0-1074"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<a id="__codelineno-0-1075" name="__codelineno-0-1075"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Send a follow-up message and return the final text response.</span>
+<a id="__codelineno-0-1076" name="__codelineno-0-1076"></a>
+<a id="__codelineno-0-1077" name="__codelineno-0-1077"></a><span class="sd">    Raises:</span>
+<a id="__codelineno-0-1078" name="__codelineno-0-1078"></a><span class="sd">        MaxTurnsExceeded: If the loop reaches ``max_turns``.</span>
+<a id="__codelineno-0-1079" name="__codelineno-0-1079"></a><span class="sd">        RuntimeError: If the provider raises an exception.</span>
+<a id="__codelineno-0-1080" name="__codelineno-0-1080"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-1081" name="__codelineno-0-1081"></a>    <span class="k">return</span> <span class="n">unwrap_text</span><span class="p">(</span><span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">ask_result</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -2852,37 +3120,37 @@ as a non-streamed turn would be.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>data_harness/app/agent.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-968">968</a></span>
-<span class="normal"><a href="#__codelineno-0-969">969</a></span>
-<span class="normal"><a href="#__codelineno-0-970">970</a></span>
-<span class="normal"><a href="#__codelineno-0-971">971</a></span>
-<span class="normal"><a href="#__codelineno-0-972">972</a></span>
-<span class="normal"><a href="#__codelineno-0-973">973</a></span>
-<span class="normal"><a href="#__codelineno-0-974">974</a></span>
-<span class="normal"><a href="#__codelineno-0-975">975</a></span>
-<span class="normal"><a href="#__codelineno-0-976">976</a></span>
-<span class="normal"><a href="#__codelineno-0-977">977</a></span>
-<span class="normal"><a href="#__codelineno-0-978">978</a></span>
-<span class="normal"><a href="#__codelineno-0-979">979</a></span>
-<span class="normal"><a href="#__codelineno-0-980">980</a></span>
-<span class="normal"><a href="#__codelineno-0-981">981</a></span>
-<span class="normal"><a href="#__codelineno-0-982">982</a></span>
-<span class="normal"><a href="#__codelineno-0-983">983</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-968" name="__codelineno-0-968"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ask_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">StreamEvent</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
-<a id="__codelineno-0-969" name="__codelineno-0-969"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Stream events for a follow-up turn.</span>
-<a id="__codelineno-0-970" name="__codelineno-0-970"></a>
-<a id="__codelineno-0-971" name="__codelineno-0-971"></a><span class="sd">    After the generator is exhausted, ``session.last_result`` holds the</span>
-<a id="__codelineno-0-972" name="__codelineno-0-972"></a><span class="sd">    `RunResult` for the turn, stamped with the session and run ids exactly</span>
-<a id="__codelineno-0-973" name="__codelineno-0-973"></a><span class="sd">    as a non-streamed turn would be.</span>
-<a id="__codelineno-0-974" name="__codelineno-0-974"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-975" name="__codelineno-0-975"></a>    <span class="n">run_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
-<a id="__codelineno-0-976" name="__codelineno-0-976"></a>    <span class="k">async</span> <span class="k">with</span> <span class="n">aclosing</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_harness</span><span class="o">.</span><span class="n">ask_stream</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span> <span class="k">as</span> <span class="n">events</span><span class="p">:</span>
-<a id="__codelineno-0-977" name="__codelineno-0-977"></a>        <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">events</span><span class="p">:</span>
-<a id="__codelineno-0-978" name="__codelineno-0-978"></a>            <span class="k">yield</span> <span class="n">event</span>
-<a id="__codelineno-0-979" name="__codelineno-0-979"></a>    <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span><span class="o">.</span><span class="n">last_result</span>
-<a id="__codelineno-0-980" name="__codelineno-0-980"></a>    <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-981" name="__codelineno-0-981"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_record</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_harness</span><span class="o">.</span><span class="n">_stamp</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">run_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_id</span><span class="p">))</span>
-<a id="__codelineno-0-982" name="__codelineno-0-982"></a>    <span class="k">else</span><span class="p">:</span>  <span class="c1"># pragma: no cover - the loop always sets a result</span>
-<a id="__codelineno-0-983" name="__codelineno-0-983"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_agent</span><span class="o">.</span><span class="n">_last_harness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1083">1083</a></span>
+<span class="normal"><a href="#__codelineno-0-1084">1084</a></span>
+<span class="normal"><a href="#__codelineno-0-1085">1085</a></span>
+<span class="normal"><a href="#__codelineno-0-1086">1086</a></span>
+<span class="normal"><a href="#__codelineno-0-1087">1087</a></span>
+<span class="normal"><a href="#__codelineno-0-1088">1088</a></span>
+<span class="normal"><a href="#__codelineno-0-1089">1089</a></span>
+<span class="normal"><a href="#__codelineno-0-1090">1090</a></span>
+<span class="normal"><a href="#__codelineno-0-1091">1091</a></span>
+<span class="normal"><a href="#__codelineno-0-1092">1092</a></span>
+<span class="normal"><a href="#__codelineno-0-1093">1093</a></span>
+<span class="normal"><a href="#__codelineno-0-1094">1094</a></span>
+<span class="normal"><a href="#__codelineno-0-1095">1095</a></span>
+<span class="normal"><a href="#__codelineno-0-1096">1096</a></span>
+<span class="normal"><a href="#__codelineno-0-1097">1097</a></span>
+<span class="normal"><a href="#__codelineno-0-1098">1098</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-1083" name="__codelineno-0-1083"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ask_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_message</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">StreamEvent</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+<a id="__codelineno-0-1084" name="__codelineno-0-1084"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Stream events for a follow-up turn.</span>
+<a id="__codelineno-0-1085" name="__codelineno-0-1085"></a>
+<a id="__codelineno-0-1086" name="__codelineno-0-1086"></a><span class="sd">    After the generator is exhausted, ``session.last_result`` holds the</span>
+<a id="__codelineno-0-1087" name="__codelineno-0-1087"></a><span class="sd">    `RunResult` for the turn, stamped with the session and run ids exactly</span>
+<a id="__codelineno-0-1088" name="__codelineno-0-1088"></a><span class="sd">    as a non-streamed turn would be.</span>
+<a id="__codelineno-0-1089" name="__codelineno-0-1089"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-1090" name="__codelineno-0-1090"></a>    <span class="n">run_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())</span>
+<a id="__codelineno-0-1091" name="__codelineno-0-1091"></a>    <span class="k">async</span> <span class="k">with</span> <span class="n">aclosing</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_harness</span><span class="o">.</span><span class="n">ask_stream</span><span class="p">(</span><span class="n">user_message</span><span class="p">))</span> <span class="k">as</span> <span class="n">events</span><span class="p">:</span>
+<a id="__codelineno-0-1092" name="__codelineno-0-1092"></a>        <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">events</span><span class="p">:</span>
+<a id="__codelineno-0-1093" name="__codelineno-0-1093"></a>            <span class="k">yield</span> <span class="n">event</span>
+<a id="__codelineno-0-1094" name="__codelineno-0-1094"></a>    <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span><span class="o">.</span><span class="n">last_result</span>
+<a id="__codelineno-0-1095" name="__codelineno-0-1095"></a>    <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-1096" name="__codelineno-0-1096"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_record</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_harness</span><span class="o">.</span><span class="n">_stamp</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">run_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_id</span><span class="p">))</span>
+<a id="__codelineno-0-1097" name="__codelineno-0-1097"></a>    <span class="k">else</span><span class="p">:</span>  <span class="c1"># pragma: no cover - the loop always sets a result</span>
+<a id="__codelineno-0-1098" name="__codelineno-0-1098"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_agent</span><span class="o">.</span><span class="n">_last_harness</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_harness</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
