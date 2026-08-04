@@ -64,31 +64,35 @@ class SubagentRecursionError(DataHarnessError, RuntimeError):
     code = "subagent_recursion"
 
 
-class ProviderError(DataHarnessError):
+class ProviderError(DataHarnessError, RuntimeError):
     """The model provider failed: rate limit, auth, timeout, malformed reply.
 
     Distinct from a tool failing, which is reported to the model as a tool
     result rather than raised. A provider failure ends the run.
+
+    Also a `RuntimeError`, because that is what a failed run raised before the
+    taxonomy existed and callers catch it that way.
     """
 
     code = "provider_error"
 
 
-class ExecutionError(DataHarnessError):
+class ExecutionError(DataHarnessError, RuntimeError):
     """Sandboxed code could not be run: timeout, killed, environment missing.
 
     Distinct from code that ran and raised, which is the model's problem and
-    is handed back to it to fix.
+    is handed back to it as a tool result to fix.
     """
 
     code = "execution_error"
 
 
-class ConfigurationError(DataHarnessError):
+class ConfigurationError(DataHarnessError, ValueError):
     """The harness was wired up in a way that cannot work.
 
     Raised at construction where possible, so a misconfiguration fails before
-    any tokens are spent rather than on turn nine.
+    any tokens are spent rather than on turn nine. Also a `ValueError`, which
+    is what these checks raised before the taxonomy.
     """
 
     code = "configuration_error"

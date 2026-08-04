@@ -89,6 +89,10 @@ class Message:
 
     def __post_init__(self) -> None:
         if self.role not in ("user", "assistant"):
+            # Plain ValueError, not ConfigurationError: `llm` is the bottom
+            # layer and may not import `core`, which is where the taxonomy
+            # lives. A malformed message is a caller error anyway, not a
+            # harness misconfiguration.
             raise ValueError(
                 f"Invalid role: {self.role!r}. Must be 'user' or 'assistant'."
             )

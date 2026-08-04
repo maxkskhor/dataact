@@ -391,3 +391,204 @@ def test_the_legacy_base_classes_still_hold():
 def test_a_tool_handler_bug_is_not_caught_by_the_library_base():
     """The base must not be so broad it swallows the caller's own mistakes."""
     assert not isinstance(ValueError("caller bug"), DataHarnessError)
+
+
+# ── review: a failing compactor must not cost the run ───────────────────────
+
+
+def test_a_compactor_that_fails_does_not_fail_the_run(tmp_path):
+    """Summarising calls a model, so failing here is ordinary.
+
+    Compaction is an optimisation. Carrying on with the full context is
+    strictly better than losing a run that was otherwise fine, and if the
+    context really was too big the provider call fails next and reports it
+    where it belongs.
+    """
+
+    def broken(session):
+        raise ValueError("summariser API down")
+
+    harness = Harness(
+        adapter=FakeAdapter(
+            [
+                FakeAdapter.text("a" * 900),
+                FakeAdapter.text("b" * 900),
+                FakeAdapter.text("done"),
+            ]
+        ),
+        system="sys",
+        tools=[],
+        run_dir=str(tmp_path),
+        compactor=broken,
+    )
+
+    harness.run("q" * 900)
+    harness.ask("second question")
+    result = harness.ask_result("third question")
+
+    assert result.status == "success"
+    assert result.text == "done"
+
+
+def test_a_failed_compaction_is_recorded(tmp_path):
+    """A run that quietly stopped compacting must be explainable afterwards."""
+
+    def broken(session):
+        raise ValueError("summariser API down")
+
+    harness = Harness(
+        adapter=FakeAdapter([FakeAdapter.text("ok")]),
+        system="sys",
+        tools=[],
+        run_dir=str(tmp_path),
+        compactor=broken,
+    )
+    harness.run("go")
+
+    failures = harness.session.custom_entries("compaction_failed")
+    assert len(failures) == 1
+    assert "summariser API down" in failures[0].data["error"]
+
+
+def test_a_cut_never_leaves_unpaired_tool_blocks(tmp_path):
+    """Parallel tool calls, mixed blocks, and assistant-first conversations.
+
+    Each of these produces a transcript a provider rejects if the cut lands
+    wrong, and none of them is exotic.
+    """
+    session = Session()
+    session.append_message(bulk("q1", 200))
+    session.append_message(bulk("a1", 200))
+    session.append_message(bulk("q2", 200))
+    session.append_message(
+        Message(
+            role="assistant",
+            content=[
+                ToolUseBlock(tool_use_id="t1", tool_name="e", tool_input={}),
+                ToolUseBlock(tool_use_id="t2", tool_name="e", tool_input={}),
+            ],
+        )
+    )
+    session.append_message(
+        Message(
+            role="user",
+            content=[
+                ToolResultBlock(tool_use_id="t1", content="r1"),
+                ToolResultBlock(tool_use_id="t2", content="r2"),
+            ],
+        )
+    )
+    session.append_message(bulk("q3", 200))
+
+    maybe_compact(session, lambda m: "summary", small_settings())
+    context = session.build_context()
+
+    uses = {
+        b.tool_use_id for m in context for b in m.content if isinstance(b, ToolUseBlock)
+    }
+    results = {
+        b.tool_use_id
+        for m in context
+        for b in m.content
+        if isinstance(b, ToolResultBlock)
+    }
+    assert uses == results
+    assert context[0].role == "user"
+    assert all(m.content for m in context)
+
+
+def test_compacting_every_turn_keeps_the_context_bounded():
+    """Thirty turns, compacting each one, must not grow without bound."""
+    settings = small_settings()
+    session = Session()
+    for i in range(30):
+        session.append_message(bulk(f"q{i}", 60))
+        session.append_message(bulk(f"a{i}", 60))
+        maybe_compact(session, lambda m: "summary", settings)
+
+    tokens = estimate_tokens(session.build_context())
+    assert tokens <= settings.context_window - settings.reserve_tokens
+
+
+def test_repeated_compaction_leaves_one_summary():
+    session = Session()
+    for i in range(4):
+        session.append_message(bulk(f"q{i}", 200))
+        session.append_message(bulk(f"a{i}", 200))
+    assert maybe_compact(session, lambda m: "summary one", small_settings())
+
+    for i in range(4, 8):
+        session.append_message(bulk(f"q{i}", 200))
+        session.append_message(bulk(f"a{i}", 200))
+    assert maybe_compact(session, lambda m: "summary two", small_settings())
+
+    summaries = [t for t in texts(session.build_context()) if t.startswith("Summary")]
+    assert len(summaries) == 1
+    assert "summary two" in summaries[0]
+
+
+def test_nothing_is_compacted_when_the_cut_leaves_no_messages(tmp_path):
+    """A safe cut can still have no *messages* before it.
+
+    Entries are not all messages: a turn record before the first user message
+    makes the boundary land at index 1 with nothing summarisable behind it.
+    Compacting there would append a summary of nothing and count as progress.
+    """
+    # Small enough that this conversation is genuinely over the trigger;
+    # otherwise the run never reaches the guard and the test proves nothing.
+    settings = CompactionSettings(
+        context_window=400, reserve_tokens=100, keep_recent_tokens=40
+    )
+    session = Session()
+    session.append_turn(turn=0, input_tokens=1)
+    session.append_message(say("q" * 900))
+    session.append_message(say("a" * 900, "assistant"))
+    session.append_message(say("hi"))
+
+    assert should_compact(estimate_tokens(session.build_context()), settings)
+
+    entries = session.context_entries()
+    cut = find_cut_point(entries, settings)
+
+    assert cut is not None
+    assert messages_before(entries, cut) == []
+    assert maybe_compact(session, lambda m: "never called", settings) is None
+
+
+def test_a_failed_run_raises_a_provider_error(tmp_path):
+    """Specifically `ProviderError`, not a bare RuntimeError.
+
+    Telling a rate limit apart from a bug in the caller's own code is the
+    entire reason the taxonomy exists.
+    """
+
+    class Broken(FakeAdapter):
+        def chat(self, system, messages, tools):
+            raise RuntimeError("429 rate limited")
+
+    harness = Harness(adapter=Broken([]), system="sys", tools=[], run_dir=str(tmp_path))
+
+    with pytest.raises(ProviderError) as excinfo:
+        harness.run("go")
+
+    assert excinfo.value.code == "provider_error"
+    assert "rate limited" in str(excinfo.value)
+    # Still a RuntimeError, which is how callers caught this before.
+    assert isinstance(excinfo.value, RuntimeError)
+
+
+def test_max_turns_does_not_raise_a_provider_error(tmp_path):
+    """The two failure kinds must stay distinguishable."""
+    harness = Harness(
+        adapter=FakeAdapter([FakeAdapter.tool_use("t1", "missing", {})]),
+        system="sys",
+        tools=[],
+        run_dir=str(tmp_path),
+        max_turns=1,
+    )
+
+    with pytest.raises(MaxTurnsExceeded) as excinfo:
+        harness.run("go")
+
+    assert not isinstance(excinfo.value, ProviderError)
+    assert excinfo.value.code == "max_turns_exceeded"

@@ -50,7 +50,9 @@ class CacheStorageInfo:
 
     def __post_init__(self) -> None:
         if self.location not in ("memory", "disk"):
-            raise ValueError(
+            from data_harness.core.exceptions import ConfigurationError
+
+            raise ConfigurationError(
                 f"Invalid location: {self.location!r}. Must be 'memory' or 'disk'."
             )
 
@@ -145,12 +147,13 @@ def unwrap_text(result: RunResult) -> str:
 
     Raises:
         MaxTurnsExceeded: If the run hit its turn cap.
-        RuntimeError: If the provider failed.
+        ProviderError: If the run failed. `ProviderError` is a `RuntimeError`,
+            so callers written before the taxonomy still catch it.
     """
-    from data_harness.core.exceptions import MaxTurnsExceeded
+    from data_harness.core.exceptions import MaxTurnsExceeded, ProviderError
 
     if result.status == "max_turns_exceeded":
         raise MaxTurnsExceeded(result.turns)
     if result.status == "error":
-        raise RuntimeError(result.error or "unknown error")
+        raise ProviderError(result.error or "unknown error")
     return result.text

@@ -60,10 +60,57 @@ def test_sandbox_propagates_runtime_error(tmp_path):
 
 
 def test_sandbox_timeout(tmp_path):
+    """A timeout is the environment failing, not the model's code being wrong.
+
+    It used to raise PythonInterpreterError, the same as a NameError in the
+    model's code, which left a caller unable to tell "your sandbox is too
+    small" from "the model wrote a bug". Both remain DataHarnessError, so a
+    caller that does not care about the difference is unaffected.
+    """
+    from data_harness.core.exceptions import DataHarnessError, ExecutionError
+
     interp = _interp(tmp_path, timeout=2, cpu_seconds=1)
-    with pytest.raises(PythonInterpreterError):
+    with pytest.raises(ExecutionError) as excinfo:
         # busy loop exceeds both the CPU and wall-clock limit
         interp.run("while True:\n    pass")
+
+    assert excinfo.value.code == "execution_error"
+    assert isinstance(excinfo.value, DataHarnessError)
+
+
+def test_sandbox_wall_clock_timeout(tmp_path, monkeypatch):
+    """The wall-clock branch, driven directly.
+
+    The other timeout test burns CPU, so the kernel kills the child and the
+    sandbox reports a non-zero exit instead: the `TimeoutExpired` branch never
+    runs, and a mutation to it survived the whole suite. Model code cannot
+    sleep either, since `time` is not on the allow-list, so the only honest
+    way to reach this branch is to make the subprocess call time out.
+    """
+    import subprocess
+
+    from data_harness.core.exceptions import ExecutionError
+
+    def times_out(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd="python", timeout=1)
+
+    monkeypatch.setattr(subprocess, "run", times_out)
+    interp = _interp(tmp_path, timeout=1)
+
+    with pytest.raises(ExecutionError, match="timed out"):
+        interp.run("1 + 1")
+
+
+def test_a_bug_in_the_models_code_is_not_an_execution_error(tmp_path):
+    """The other side of the distinction: this one is the model's to fix."""
+    from data_harness.core.exceptions import ExecutionError
+
+    interp = _interp(tmp_path)
+    with pytest.raises(PythonInterpreterError) as excinfo:
+        interp.run("this_name_does_not_exist")
+
+    assert not isinstance(excinfo.value, ExecutionError)
+    assert excinfo.value.code == "interpreter_error"
 
 
 def test_sandbox_handles_roundtrip_dataframe(tmp_path):

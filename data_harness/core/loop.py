@@ -48,6 +48,7 @@ from typing import Any, Literal, TypeVar
 
 from data_harness.core.compaction import Compactor
 from data_harness.core.environment import NullEnvironment, RunEnvironment
+from data_harness.core.exceptions import ConfigurationError
 from data_harness.core.hooks import (
     AfterToolCall,
     AfterTurn,
@@ -305,7 +306,7 @@ class _HarnessBase:
         compactor: Compactor | None = None,
     ) -> None:
         if max_turns < 1:
-            raise ValueError(f"max_turns must be at least 1, got {max_turns!r}")
+            raise ConfigurationError(f"max_turns must be at least 1, got {max_turns!r}")
         self._system = system
         self._tools = list(tools)
         self._max_turns = max_turns
@@ -778,10 +779,26 @@ class _HarnessBase:
         The working copy is rebuilt from the session rather than edited, so
         the conversation the model sees stays derived from the log rather than
         becoming a second, divergent thing.
+
+        A compactor that fails does not fail the run. Summarising means
+        calling a model, so a rate limit or a timeout here is ordinary, and
+        compaction is an optimisation: carrying on with the full context is
+        strictly better than losing the run. If the context really was too
+        big, the provider call fails next and that failure is reported where
+        it belongs. The attempt is recorded either way, so a run that quietly
+        stopped compacting can be explained afterwards.
         """
         if self._compactor is None:
             return
-        if self._compactor(self._session) is not None:
+        try:
+            compacted = self._compactor(self._session)
+        except Exception as exc:  # noqa: BLE001 - reported, not fatal
+            self._session.append_custom(
+                "compaction_failed",
+                {"turn": self._turns_completed, "error": repr(exc)},
+            )
+            return
+        if compacted is not None:
             self._messages[:] = self._session.build_context()
 
     def _apply_reminders(self, turn: int) -> None:

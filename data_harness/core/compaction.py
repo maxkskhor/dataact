@@ -27,6 +27,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from data_harness.core.exceptions import ConfigurationError
 from data_harness.core.session.entries import Entry, MessageEntry
 from data_harness.llm.types import (
     Message,
@@ -61,7 +62,7 @@ class CompactionSettings:
 
     def __post_init__(self) -> None:
         if self.keep_recent_tokens >= self.context_window - self.reserve_tokens:
-            raise ValueError(
+            raise ConfigurationError(
                 "keep_recent_tokens must leave room under the trigger point, "
                 f"got keep={self.keep_recent_tokens} with window="
                 f"{self.context_window} and reserve={self.reserve_tokens}"

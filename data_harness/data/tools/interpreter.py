@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from data_harness.core.artifacts import ChartArtifact
+from data_harness.core.exceptions import DataHarnessError
 from data_harness.data.cache import SessionCache
 from data_harness.llm.types import ToolAnnotations, ToolSpec
 
@@ -63,8 +64,15 @@ _LOCALS_ERROR = (
 _SENTINEL = object()
 
 
-class PythonInterpreterError(Exception):
-    """Raised by PythonInterpreter.run() on any execution failure."""
+class PythonInterpreterError(DataHarnessError):
+    """The model's code ran and failed, or was refused by the allow-list.
+
+    The model's problem to fix, so it is handed back as a tool result rather
+    than ending the run. Distinct from `ExecutionError`, which means the code
+    never got to run at all.
+    """
+
+    code = "interpreter_error"
 
     def __repr__(self) -> str:
         return str(self)

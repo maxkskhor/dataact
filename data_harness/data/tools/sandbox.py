@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from data_harness.core.artifacts import ChartArtifact
+from data_harness.core.exceptions import ExecutionError
 from data_harness.data.cache import SessionCache
 from data_harness.data.tools.interpreter import (
     _DEFAULT_ALLOWLIST,
@@ -109,13 +110,15 @@ class SubprocessPythonInterpreter:
                     timeout=self._timeout,
                 )
             except subprocess.TimeoutExpired:
-                raise PythonInterpreterError(
+                # The code never finished, so this is the environment failing
+                # rather than the model's code being wrong.
+                raise ExecutionError(
                     f"Execution timed out after {self._timeout}s in the sandbox."
                 ) from None
 
             if proc.returncode != 0 or not result_path.exists():
                 stderr = proc.stderr.decode("utf-8", "replace")[-800:]
-                raise PythonInterpreterError(
+                raise ExecutionError(
                     f"Sandbox process failed (exit {proc.returncode}). {stderr}"
                 )
 
