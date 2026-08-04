@@ -8,11 +8,15 @@ from pathlib import Path
 
 import pytest
 
-from data_harness.cache import SessionCache
-from data_harness.exceptions import MaxTurnsExceeded
-from data_harness.loop import Harness
-from data_harness.providers.base import NormalizedResponse, ProviderAdapter, StopReason
-from data_harness.types import (
+from data_harness.core.exceptions import MaxTurnsExceeded
+from data_harness.data.cache import SessionCache
+from data_harness.data.harness import Harness
+from data_harness.llm.providers.base import (
+    NormalizedResponse,
+    ProviderAdapter,
+    StopReason,
+)
+from data_harness.llm.types import (
     Message,
     TextBlock,
     ToolResultBlock,
@@ -325,8 +329,8 @@ class TestLoopBasic:
         harness.run("go")
         # The harness internal messages should not be mutated by adapter calls
         # We verify by checking stored messages are structurally sound
-        assert harness._messages is not None
-        for m in harness._messages:
+        assert harness.messages is not None
+        for m in harness.messages:
             assert m.role in ("user", "assistant")
 
     def test_visible_tool_flip_reflects_in_next_call(self, tmp_path):

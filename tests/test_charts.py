@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from data_harness.artifacts import ChartArtifact
-from data_harness.cache import SessionCache
-from data_harness.result import RunResult, Usage
-from data_harness.tools.interpreter import PythonInterpreter
+from data_harness.core.artifacts import ChartArtifact
+from data_harness.core.result import RunResult, Usage
+from data_harness.data.cache import SessionCache
+from data_harness.data.tools.interpreter import PythonInterpreter
 
 
 def _interp(tmp_path) -> PythonInterpreter:

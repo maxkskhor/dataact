@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import pytest
 
-from data_harness.agent import AsyncAgent
-from data_harness.exceptions import MaxTurnsExceeded
-from data_harness.loop import AsyncHarness
-from data_harness.streaming import (
+from data_harness.app.agent import AsyncAgent
+from data_harness.core.exceptions import MaxTurnsExceeded
+from data_harness.data.harness import AsyncHarness
+from data_harness.llm.streaming import (
     ContentBlockDeltaEvent,
     MessageStopEvent,
     StreamEvent,
     TextDelta,
     ToolResultEvent,
 )
-from data_harness.testing import FakeAsyncAdapter
-from data_harness.types import ToolSpec
+from data_harness.llm.testing import FakeAsyncAdapter
+from data_harness.llm.types import ToolSpec
 
 # ---------------------------------------------------------------------------
 # AsyncHarness — basic run_result / run
@@ -197,9 +197,9 @@ async def test_async_harness_raising_handler_is_error(tmp_path):
     result = await harness.run_result("go")
     assert result.status == "success"
     # Inspect the tool result in the message history
-    from data_harness.types import ToolResultBlock
+    from data_harness.llm.types import ToolResultBlock
 
-    for msg in reversed(harness._messages):
+    for msg in reversed(harness.messages):
         if msg.role == "user":
             tool_results = [b for b in msg.content if isinstance(b, ToolResultBlock)]
             if tool_results:

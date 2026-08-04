@@ -1,10 +1,14 @@
-"""Tests for `data_harness.testing` — the public FakeAdapter for docs and tests."""
+"""Tests for `data_harness.llm.testing` — the public FakeAdapter for docs and tests."""
 
 from __future__ import annotations
 
-from data_harness.providers.base import NormalizedResponse, ProviderAdapter, StopReason
-from data_harness.testing import FakeAdapter
-from data_harness.types import TextBlock, ToolUseBlock
+from data_harness.llm.providers.base import (
+    NormalizedResponse,
+    ProviderAdapter,
+    StopReason,
+)
+from data_harness.llm.testing import FakeAdapter
+from data_harness.llm.types import TextBlock, ToolUseBlock
 
 
 def _text_response(text: str) -> NormalizedResponse:

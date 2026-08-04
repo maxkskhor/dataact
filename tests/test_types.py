@@ -1,8 +1,8 @@
 import pytest
 
-from data_harness.providers.base import ProviderAdapter
-from data_harness.serialize import to_jsonable
-from data_harness.types import (
+from data_harness.core.serialize import to_jsonable
+from data_harness.llm.providers.base import ProviderAdapter
+from data_harness.llm.types import (
     Message,
     TextBlock,
     ToolResultBlock,

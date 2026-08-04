@@ -10,14 +10,13 @@ touches the model.
 
 from __future__ import annotations
 
-import time
-
 import dataclasses
+import time
 
 import pandas as pd
 
 from data_harness import Agent, ExecutionCache
-from data_harness.testing import FakeAdapter
+from data_harness.llm.testing import FakeAdapter
 
 SALES = pd.DataFrame(
     {"month": ["Jan", "Feb", "Mar", "Apr"], "revenue": [120, 150, 90, 200]}

@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import copy
 
-from data_harness.cache import SessionCache
-from data_harness.providers.base import NormalizedResponse, ProviderAdapter, StopReason
-from data_harness.tools.connectors import ConnectorRegistry
-from data_harness.tools.interpreter import PythonInterpreter
-from data_harness.tools.subagent import make_subagent_spec
-from data_harness.types import Message, TextBlock, ToolSpec, ToolUseBlock
+from data_harness.data.cache import SessionCache
+from data_harness.data.tools.connectors import ConnectorRegistry
+from data_harness.data.tools.interpreter import PythonInterpreter
+from data_harness.data.tools.subagent import make_subagent_spec
+from data_harness.llm.providers.base import (
+    NormalizedResponse,
+    ProviderAdapter,
+    StopReason,
+)
+from data_harness.llm.types import Message, TextBlock, ToolSpec, ToolUseBlock
 
 
 class FakeAdapter(ProviderAdapter):

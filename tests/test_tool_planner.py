@@ -1,6 +1,6 @@
 """Tests for the Planner tool."""
 
-from data_harness.tools.planner import Planner
+from data_harness.data.tools.planner import Planner
 
 
 class TestPlannerBasic:

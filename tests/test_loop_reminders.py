@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import copy
 
-from data_harness.loop import Harness
-from data_harness.providers.base import NormalizedResponse, ProviderAdapter, StopReason
-from data_harness.types import (
+from data_harness.data.harness import Harness
+from data_harness.llm.providers.base import (
+    NormalizedResponse,
+    ProviderAdapter,
+    StopReason,
+)
+from data_harness.llm.types import (
     Message,
     TextBlock,
     ToolSpec,

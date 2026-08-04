@@ -7,9 +7,9 @@ import json
 import pandas as pd
 
 from data_harness import Agent
-from data_harness.cache import SessionCache
-from data_harness.testing import FakeAdapter
-from data_harness.tools.sql import make_sql_query_spec
+from data_harness.data.cache import SessionCache
+from data_harness.data.tools.sql import make_sql_query_spec
+from data_harness.llm.testing import FakeAdapter
 
 
 def _sales() -> pd.DataFrame:

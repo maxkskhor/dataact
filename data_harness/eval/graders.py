@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from data_harness.core.result import RunResult
     from data_harness.eval.case import EvalCase, Grader
-    from data_harness.result import RunResult
 
 _NUMBER_RE = re.compile(r"-?\d[\d,]*\.?\d*")
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 
 from data_harness import Agent, ExecutionCache
-from data_harness.testing import FakeAdapter
+from data_harness.llm.testing import FakeAdapter
 
 
 def _df() -> pd.DataFrame:
@@ -55,7 +55,7 @@ def test_code_only_dry_run(tmp_path):
     res = agent.run_result("sum")
     assert res.value is None
     # the interpreter result echoed the code rather than running it
-    last_user = agent.last_harness._messages[-2]
+    last_user = agent.last_harness.messages[-2]
     contents = " ".join(b.content for b in last_user.content if hasattr(b, "content"))
     assert "DRY RUN" in contents
 
@@ -109,8 +109,8 @@ def test_cache_persists_to_disk(tmp_path):
 
 
 def test_extract_steps_skips_errored_calls():
-    from data_harness.exec_cache import extract_steps
-    from data_harness.types import (
+    from data_harness.data.exec_cache import extract_steps
+    from data_harness.llm.types import (
         Message,
         TextBlock,
         ToolResultBlock,

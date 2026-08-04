@@ -8,11 +8,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from data_harness.cache import SessionCache
-from data_harness.loop import Harness
-from data_harness.providers.base import NormalizedResponse, StopReason
-from data_harness.testing import FakeAdapter
-from data_harness.types import TextBlock, ToolSpec, ToolUseBlock
+from data_harness.data.cache import SessionCache
+from data_harness.data.harness import Harness
+from data_harness.llm.providers.base import NormalizedResponse, StopReason
+from data_harness.llm.testing import FakeAdapter
+from data_harness.llm.types import TextBlock, ToolSpec, ToolUseBlock
 
 
 def make_text_response(

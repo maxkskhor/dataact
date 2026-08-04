@@ -5,11 +5,11 @@ TDD: written before implementation.
 
 from __future__ import annotations
 
-from data_harness.agent import Agent
-from data_harness.providers.base import NormalizedResponse, StopReason
-from data_harness.result import RunResult
-from data_harness.testing import FakeAdapter
-from data_harness.types import TextBlock
+from data_harness.app.agent import Agent
+from data_harness.core.result import RunResult
+from data_harness.llm.providers.base import NormalizedResponse, StopReason
+from data_harness.llm.testing import FakeAdapter
+from data_harness.llm.types import TextBlock
 
 
 def make_text_response(
@@ -117,15 +117,24 @@ class TestAgentSessionId:
         result = agent.run_result("q")
         assert result.session_id is None
 
-    def test_agent_has_no_last_result_attribute(self, tmp_path):
-        """Per plan: Agent should NOT grow last_result in this phase."""
+    def test_agent_records_last_result(self, tmp_path):
+        """`Agent` deliberately grew `last_result`.
+
+        It previously did not, on the grounds that `run_result` already
+        returns one. That stopped being sufficient once a run could be
+        streamed or served from the replay cache: neither hands the caller a
+        result, so there was no way to reach a streamed run's token usage.
+        """
         agent = Agent(
             adapter=FakeAdapter([make_text_response("hi")]),
             system="s",
             run_dir=str(tmp_path),
         )
-        agent.run_result("q")
-        assert not hasattr(agent, "last_result")
+        assert agent.last_result is None
+
+        returned = agent.run_result("q")
+
+        assert agent.last_result is returned
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +228,7 @@ class TestAgentSessionTurns:
         A two-turn run (tool-use + end-turn) triggered by one ask() should
         contribute 2 to session.turns.
         """
-        from data_harness.types import ToolSpec, ToolUseBlock
+        from data_harness.llm.types import ToolSpec, ToolUseBlock
 
         tool_resp = NormalizedResponse(
             stop_reason=StopReason.TOOL_USE,
@@ -246,6 +255,6 @@ class TestAgentSessionTurns:
         # by using the harness directly through session
         session = agent.session()
         # Patch: add the echo spec to the harness tools for this test
-        session.harness._tools.append(echo_spec)
+        session.harness.tools.append(echo_spec)
         session.ask("go")
         assert session.turns == 2

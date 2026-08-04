@@ -8,14 +8,18 @@ from pathlib import Path
 
 import pandas as pd
 
-from data_harness.cache import SessionCache
-from data_harness.loop import Harness
-from data_harness.providers.base import NormalizedResponse, ProviderAdapter, StopReason
-from data_harness.tools.connectors import ConnectorRegistry
-from data_harness.tools.interpreter import PythonInterpreter
-from data_harness.tools.subagent import make_subagent_spec
-from data_harness.tools.variables import make_list_variables_spec
-from data_harness.types import (
+from data_harness.data.cache import SessionCache
+from data_harness.data.harness import Harness
+from data_harness.data.tools.connectors import ConnectorRegistry
+from data_harness.data.tools.interpreter import PythonInterpreter
+from data_harness.data.tools.subagent import make_subagent_spec
+from data_harness.data.tools.variables import make_list_variables_spec
+from data_harness.llm.providers.base import (
+    NormalizedResponse,
+    ProviderAdapter,
+    StopReason,
+)
+from data_harness.llm.types import (
     Message,
     TextBlock,
     ToolResultBlock,
@@ -179,10 +183,10 @@ class TestIntegrationFlow:
         assert len(set(systems)) == 1
 
         # Invariant 5: cache_control only in adapter-bound payloads, not harness objects
-        for msg in harness._messages:
+        for msg in harness.messages:
             for block in msg.content:
                 assert not hasattr(block, "cache_control")
-        for tool in harness._tools:
+        for tool in harness.tools:
             assert not hasattr(tool, "cache_control")
 
     def test_tool_use_ordering_invariant(self, tmp_path):

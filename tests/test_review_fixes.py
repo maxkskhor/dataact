@@ -10,10 +10,14 @@ from pathlib import Path
 
 import pytest
 
-from data_harness.loop import Harness
-from data_harness.providers.base import NormalizedResponse, ProviderAdapter, StopReason
-from data_harness.testing import FakeAdapter
-from data_harness.types import TextBlock, ToolAnnotations, ToolSpec
+from data_harness.data.harness import Harness
+from data_harness.llm.providers.base import (
+    NormalizedResponse,
+    ProviderAdapter,
+    StopReason,
+)
+from data_harness.llm.testing import FakeAdapter
+from data_harness.llm.types import TextBlock, ToolAnnotations, ToolSpec
 
 
 def make_text_response(text: str) -> NormalizedResponse:
@@ -35,7 +39,7 @@ def make_text_response(text: str) -> NormalizedResponse:
 class TestAgentSessionAskRaisesOnError:
     def test_ask_raises_runtime_error_on_adapter_exception(self, tmp_path):
         """AgentSession.ask() must raise RuntimeError when adapter raises."""
-        from data_harness.agent import Agent
+        from data_harness.app.agent import Agent
 
         class BoomAdapter(ProviderAdapter):
             def chat(self, system, messages, tools):
@@ -51,7 +55,7 @@ class TestAgentSessionAskRaisesOnError:
 
     def test_ask_result_still_returns_error_status_not_raises(self, tmp_path):
         """ask_result() must return RunResult(status='error'), not raise."""
-        from data_harness.agent import Agent
+        from data_harness.app.agent import Agent
 
         class BoomAdapter(ProviderAdapter):
             def chat(self, system, messages, tools):
@@ -158,7 +162,7 @@ class TestMaxTokensTerminates:
 class TestAgentSessionDeepCacheIsolation:
     def test_session_cache_is_isolated_from_agent_cache(self, tmp_path):
         """Mutating session cache must not affect the agent-level cache."""
-        from data_harness.agent import Agent
+        from data_harness.app.agent import Agent
 
         agent = Agent(
             adapter=FakeAdapter([make_text_response("ok")]),
@@ -179,7 +183,7 @@ class TestAgentSessionDeepCacheIsolation:
 
     def test_agent_cache_mutation_does_not_affect_session(self, tmp_path):
         """Mutating agent cache after session creation must not affect session cache."""
-        from data_harness.agent import Agent
+        from data_harness.app.agent import Agent
 
         shared_list = [10, 20]
         agent = Agent(

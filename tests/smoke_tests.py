@@ -28,14 +28,14 @@ import pandas as pd
 import pytest
 
 from data_harness import Agent
-from data_harness.cache import SessionCache
-from data_harness.loop import Harness
-from data_harness.providers.base import StopReason
-from data_harness.providers.openai import OpenRouterAdapter
-from data_harness.result import CacheStorageInfo, RunResult
-from data_harness.tools.planner import Planner
-from data_harness.tools.subagent import make_subagent_spec
-from data_harness.types import ToolAnnotations, ToolSpec
+from data_harness.core.result import CacheStorageInfo, RunResult
+from data_harness.data.cache import SessionCache
+from data_harness.data.harness import Harness
+from data_harness.data.tools.planner import Planner
+from data_harness.data.tools.subagent import make_subagent_spec
+from data_harness.llm.providers.base import StopReason
+from data_harness.llm.providers.openai import OpenRouterAdapter
+from data_harness.llm.types import ToolAnnotations, ToolSpec
 from examples.advanced_wiring import build_base_tools, load_unemployment_rate
 
 pytestmark = pytest.mark.live
@@ -75,7 +75,7 @@ def _latest_jsonl(run_dir: Path) -> list[dict]:
 
 def _all_text_from_messages(harness: Harness) -> str:
     parts: list[str] = []
-    for message in harness._messages:
+    for message in harness.messages:
         for block in message.content:
             text = getattr(block, "text", None) or getattr(block, "content", None)
             if text:

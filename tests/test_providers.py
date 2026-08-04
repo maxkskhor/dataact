@@ -3,8 +3,8 @@ import json
 from contextlib import asynccontextmanager
 from unittest.mock import MagicMock, patch
 
-from data_harness.providers.base import StopReason
-from data_harness.streaming import (
+from data_harness.llm.providers.base import StopReason
+from data_harness.llm.streaming import (
     ContentBlockDeltaEvent,
     ContentBlockStartEvent,
     InputJSONDelta,
@@ -13,7 +13,7 @@ from data_harness.streaming import (
     MessageStopEvent,
     TextDelta,
 )
-from data_harness.types import Message, TextBlock, ToolSpec, ToolUseBlock
+from data_harness.llm.types import Message, TextBlock, ToolSpec, ToolUseBlock
 
 
 def make_anthropic_response(stop_reason="end_turn", content_blocks=None, usage=None):
@@ -62,7 +62,7 @@ class TestStopReason:
 class TestAnthropicAdapter:
     def _make_adapter(self):
         with patch("anthropic.Anthropic"):
-            from data_harness.providers.anthropic import AnthropicAdapter
+            from data_harness.llm.providers.anthropic import AnthropicAdapter
 
             adapter = AnthropicAdapter(model="claude-3-5-sonnet-20241022")
         return adapter
@@ -329,7 +329,7 @@ def _make_tool_sse_sequence(
 class TestAsyncAnthropicAdapterStreamEvents:
     def _make_async_adapter(self):
         with patch("anthropic.AsyncAnthropic"):
-            from data_harness.providers.anthropic import AsyncAnthropicAdapter
+            from data_harness.llm.providers.anthropic import AsyncAnthropicAdapter
 
             return AsyncAnthropicAdapter(model="claude-sonnet-4-6")
 
@@ -437,7 +437,7 @@ class TestAsyncAnthropicAdapterStreamEvents:
 
         starts = [e for e in events if isinstance(e, ContentBlockStartEvent)]
         assert len(starts) == 1
-        from data_harness.types import ToolUseBlock
+        from data_harness.llm.types import ToolUseBlock
 
         assert isinstance(starts[0].content_block, ToolUseBlock)
         assert starts[0].content_block.tool_use_id == "tu1"

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from data_harness.artifacts import ChartArtifact
+from data_harness.core.artifacts import ChartArtifact
+from data_harness.core.result import RunResult, Usage
 from data_harness.eval import (
     EvalCase,
     EvalReport,
@@ -21,8 +22,7 @@ from data_harness.eval import (
     refuses,
     wtq_row_to_case,
 )
-from data_harness.result import RunResult, Usage
-from data_harness.testing import FakeAdapter
+from data_harness.llm.testing import FakeAdapter
 
 
 def _result(text="", value=None, charts=None) -> RunResult:

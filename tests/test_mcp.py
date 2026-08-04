@@ -5,8 +5,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from data_harness import Agent
-from data_harness.mcp import _result_to_text, mcp_tool_specs
-from data_harness.testing import FakeAdapter
+from data_harness.data.mcp import _result_to_text, mcp_tool_specs
+from data_harness.llm.testing import FakeAdapter
 
 
 class _FakeMCPClient:
