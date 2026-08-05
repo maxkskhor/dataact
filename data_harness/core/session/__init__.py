@@ -19,7 +19,11 @@ from data_harness.core.session.entries import (
     new_entry_id,
     utc_now,
 )
-from data_harness.core.session.jsonl import JsonlSessionStore
+from data_harness.core.session.jsonl import (
+    FORMAT_VERSION,
+    JsonlSessionStore,
+    encode_entry,
+)
 from data_harness.core.session.session import (
     CustomProjector,
     Session,
@@ -34,6 +38,7 @@ from data_harness.core.session.store import (
 
 __all__ = [
     "ENTRY_TYPES",
+    "FORMAT_VERSION",
     "BaseEntry",
     "CompactionEntry",
     "CustomEntry",
@@ -49,6 +54,7 @@ __all__ = [
     "SessionStore",
     "SessionStoreError",
     "TurnEntry",
+    "encode_entry",
     "leaf_entries",
     "new_entry_id",
     "utc_now",

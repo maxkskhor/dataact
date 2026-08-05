@@ -15,6 +15,7 @@ import pytest
 
 from data_harness.core.hooks import BeforeTurn, Reminder
 from data_harness.core.session import (
+    FORMAT_VERSION,
     JsonlSessionStore,
     LeafEntry,
     MemorySessionStore,
@@ -23,6 +24,7 @@ from data_harness.core.session import (
     SessionStore,
     SessionStoreError,
     TurnEntry,
+    encode_entry,
 )
 from data_harness.data.harness import Harness
 from data_harness.llm.testing import FakeAdapter
@@ -833,3 +835,26 @@ def test_both_stores_agree_after_a_message_is_mutated(tmp_path):
 
     assert blocks(memory) == [["original"]]
     assert blocks(on_disk) == [["original"]]
+
+
+def test_encode_entry_is_public_for_serialising_a_memory_only_session():
+    # A caller with an in-memory session (no JsonlSessionStore, no file path
+    # anywhere) still needs to reproduce byte-for-byte what would have been
+    # written to disk -- e.g. a web backend rendering "view session as JSONL"
+    # for a session it never persisted. FORMAT_VERSION/encode_entry make that
+    # possible without reaching into the jsonl module directly.
+    session = Session(MemorySessionStore("live"))
+    session.append_message(say("hello"))
+    session.append_turn(turn=1, input_tokens=10, output_tokens=5)
+
+    header = {"type": "session", "version": FORMAT_VERSION, "id": "live"}
+    lines = [json.dumps(header)]
+    for entry in session.branch():
+        lines.append(json.dumps(encode_entry(entry)))
+
+    decoded = [json.loads(line) for line in lines]
+    assert decoded[0] == header
+    assert decoded[1]["type"] == "message"
+    assert decoded[1]["message"]["content"][0]["text"] == "hello"
+    assert decoded[2]["type"] == "turn"
+    assert decoded[2]["input_tokens"] == 10

@@ -1,5 +1,20 @@
 # Changelog
 
+### 1.3.3
+
+- **`encode_entry`/`FORMAT_VERSION` are now public**, exported from
+  `data_harness.core.session`. A caller with a live, in-memory-only session
+  (no `JsonlSessionStore`, no file path) can now reproduce byte-for-byte what
+  would have been written to disk — e.g. a web backend rendering "view this
+  session as JSONL" for a session it never persisted to a file:
+  ```python
+  from data_harness.core.session import FORMAT_VERSION, encode_entry
+  lines = [json.dumps({"type": "session", "version": FORMAT_VERSION, "id": sid})]
+  lines += [json.dumps(encode_entry(e)) for e in session.branch()]
+  ```
+  Previously this required reaching into `data_harness.core.session.jsonl`
+  directly, an internal module with no stability guarantee.
+
 ### 1.3.2
 
 - **`ChartArtifact.handle` is now populated.** Both chart-capture sites
