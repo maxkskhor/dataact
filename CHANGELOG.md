@@ -1,5 +1,18 @@
 # Changelog
 
+### 1.3.2
+
+- **`ChartArtifact.handle` is now populated.** Both chart-capture sites
+  (`PythonInterpreter._capture_charts`, `SubprocessPythonInterpreter._merge_result`)
+  construct the artifact, `cache.put()` it, then set `.handle` to the actual
+  returned name (accounting for `SessionCache`'s auto-suffix on a name
+  collision, e.g. `chart_2`). The field existed in the dataclass since it was
+  first added — documented as "the cache handle it's stored under" — but was
+  never actually set, so it silently stayed `None`. A caller with just a
+  `ChartArtifact` (e.g. from `RunResult.charts`) had no way back to the name
+  it's addressable by without re-deriving it from `SessionCache.list_charts()`
+  order.
+
 ### 1.3.1
 
 - **`resolve_adapter`/`resolve_async_adapter` forward extra keyword arguments**

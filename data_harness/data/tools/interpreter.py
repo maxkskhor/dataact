@@ -165,7 +165,9 @@ class PythonInterpreter:
             path = self._artifacts_path() / f"chart_{uuid.uuid4().hex[:8]}.png"
             fig.savefig(path, format="png", bbox_inches="tight")
             artifact = ChartArtifact(path=str(path), format="png", title=title)
-            handles.append(self._cache.put("chart", artifact))
+            handle = self._cache.put("chart", artifact)
+            artifact.handle = handle
+            handles.append(handle)
             plt.close(fig)
         return handles
 

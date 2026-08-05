@@ -45,6 +45,7 @@ def test_sandbox_captures_chart(tmp_path):
     assert len(charts) == 1
     assert charts[0].title == "sb"
     assert charts[0].read_bytes()[:4] == b"\x89PNG"
+    assert charts[0].handle == "chart"
 
 
 def test_sandbox_blocks_forbidden_import(tmp_path):

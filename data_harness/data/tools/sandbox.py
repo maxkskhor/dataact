@@ -138,9 +138,9 @@ class SubprocessPythonInterpreter:
 
         chart_handles: list[str] = []
         for path, title in result["charts"]:
-            handle = self._cache.put(
-                "chart", ChartArtifact(path=path, format="png", title=title)
-            )
+            artifact = ChartArtifact(path=path, format="png", title=title)
+            handle = self._cache.put("chart", artifact)
+            artifact.handle = handle
             chart_handles.append(handle)
         chart_note = "\n".join(
             f"Rendered chart saved to handle `{h}`." for h in chart_handles

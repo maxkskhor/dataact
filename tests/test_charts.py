@@ -25,6 +25,25 @@ def test_interpreter_captures_matplotlib_figure(tmp_path):
     assert len(charts) == 1
     assert charts[0].title == "demo"
     assert charts[0].read_bytes()[:4] == b"\x89PNG"
+    # `.handle` must be the real cache handle, not the constructor default of
+    # None — a consumer that only has the ChartArtifact needs a way back to
+    # the name it's addressable by (e.g. to build a serving URL).
+    assert charts[0].handle == "chart"
+
+
+def test_second_chart_in_one_turn_gets_auto_suffixed_handle(tmp_path):
+    # SessionCache.put auto-suffixes ("chart_2") on a name collision; the
+    # artifact's `.handle` must reflect the *actual* assigned name, not the
+    # "chart" name that was requested.
+    interp = _interp(tmp_path)
+    interp.run(
+        "import matplotlib.pyplot as plt\n"
+        "plt.figure(); plt.plot([1, 2])\n"
+        "plt.figure(); plt.plot([3, 4])\n"
+    )
+    charts = interp._cache.list_charts()
+    assert len(charts) == 2
+    assert {c.handle for c in charts} == {"chart", "chart_2"}
 
 
 def test_no_chart_when_no_plot(tmp_path):
