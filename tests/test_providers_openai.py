@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 pytest.importorskip("openai")
 
 from data_harness.llm.providers.base import StopReason
+from data_harness.llm.providers.openai import _cache_read_tokens
 from data_harness.llm.types import (
     Message,
     TextBlock,
@@ -25,9 +27,17 @@ def make_openai_response(finish_reason="stop", message=None, usage=None):
     choice.finish_reason = finish_reason
     choice.message = message if message is not None else make_openai_message()
     response.choices = [choice]
-    response.usage = MagicMock()
-    response.usage.prompt_tokens = (usage or {}).get("prompt_tokens", 10)
-    response.usage.completion_tokens = (usage or {}).get("completion_tokens", 5)
+    # SimpleNamespace, not MagicMock: a real response's usage object doesn't
+    # have prompt_cache_hit_tokens/prompt_tokens_details unless the provider
+    # actually reports them, so a genuinely-absent field must raise
+    # AttributeError (what getattr's default branch expects) rather than
+    # auto-vivify a truthy MagicMock that silently breaks cache-token
+    # parsing tests.
+    usage = usage or {}
+    response.usage = SimpleNamespace(
+        prompt_tokens=usage.get("prompt_tokens", 10),
+        completion_tokens=usage.get("completion_tokens", 5),
+    )
     return response
 
 
@@ -303,6 +313,74 @@ class TestOpenAIAdapter:
         assert system == system_before
         assert messages == messages_before
         assert tools == tools_before
+
+
+class TestCacheReadTokens:
+    """`_cache_read_tokens` must handle three incompatible provider shapes
+    (DeepSeek flat field, OpenAI nested field, neither) without raising -
+    `SimpleNamespace`, not `MagicMock`, so a genuinely absent attribute
+    behaves like the real SDK's response models (AttributeError, caught by
+    getattr's default) rather than auto-vivifying a truthy mock."""
+
+    def test_reads_deepseek_flat_hit_field(self):
+        usage = SimpleNamespace(prompt_cache_hit_tokens=42, prompt_tokens=100)
+        assert _cache_read_tokens(usage) == 42
+
+    def test_reads_openai_nested_cached_tokens_field(self):
+        usage = SimpleNamespace(
+            prompt_tokens=100,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=17),
+        )
+        assert _cache_read_tokens(usage) == 17
+
+    def test_defaults_to_zero_when_neither_field_present(self):
+        usage = SimpleNamespace(prompt_tokens=100)
+        assert _cache_read_tokens(usage) == 0
+
+    def test_defaults_to_zero_when_nested_details_is_none(self):
+        # Some SDK/model combinations model an absent nested object as an
+        # explicit None attribute rather than omitting it entirely.
+        usage = SimpleNamespace(prompt_tokens=100, prompt_tokens_details=None)
+        assert _cache_read_tokens(usage) == 0
+
+    def test_zero_hit_tokens_is_a_real_zero_not_a_missing_field(self):
+        # 0 is falsy but not None - a session with no cache hits yet must
+        # still read as 0 via the DeepSeek branch, not fall through to the
+        # OpenAI branch and find nothing there either (which would also
+        # produce 0, masking a real bug: reading the wrong field entirely).
+        usage = SimpleNamespace(
+            prompt_cache_hit_tokens=0,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=99),
+        )
+        assert _cache_read_tokens(usage) == 0
+
+    def test_full_response_normalisation_reports_cache_read_but_not_write(self):
+        # End-to-end through _make_normalized, not just the helper in
+        # isolation - confirms the wiring from raw response to
+        # NormalizedResponse actually uses _cache_read_tokens, and that
+        # cache_write_tokens stays 0 rather than guessing from miss_tokens.
+        from data_harness.llm.providers.openai import OpenAIAdapter
+
+        response = MagicMock()
+        choice = MagicMock()
+        choice.finish_reason = "stop"
+        choice.message = make_openai_message()
+        response.choices = [choice]
+        response.usage = SimpleNamespace(
+            prompt_tokens=100,
+            completion_tokens=20,
+            prompt_cache_hit_tokens=80,
+            prompt_cache_miss_tokens=20,
+        )
+
+        with patch("openai.OpenAI"):
+            adapter = OpenAIAdapter(model="gpt-test")
+        normalized = adapter._make_normalized(response)
+
+        assert normalized.input_tokens == 100
+        assert normalized.output_tokens == 20
+        assert normalized.cache_read_tokens == 80
+        assert normalized.cache_write_tokens == 0
 
 
 class TestOpenAICompatibleProviderRegistry:

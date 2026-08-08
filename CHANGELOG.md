@@ -1,5 +1,19 @@
 # Changelog
 
+### 1.3.4
+
+- **OpenAI-compatible adapters now report cache reads.** `OpenAIAdapter`,
+  `AsyncOpenAIAdapter`, and by inheritance `OpenRouterAdapter`/`DeepSeekAdapter`
+  and their async twins previously hardcoded `cache_read_tokens=0` regardless
+  of what the provider actually reported. They now read DeepSeek's
+  `usage.prompt_cache_hit_tokens` or OpenAI's nested
+  `usage.prompt_tokens_details.cached_tokens`, whichever is present.
+  `cache_write_tokens` stays `0` deliberately — neither provider exposes a
+  real write-side count, and DeepSeek's `prompt_cache_miss_tokens` answers a
+  different question ("not found in cache") than "written to cache," so
+  guessing one from the other would report a number that looks precise but
+  isn't backed by anything the provider actually confirmed.
+
 ### 1.3.3
 
 - **`encode_entry`/`FORMAT_VERSION` are now public**, exported from

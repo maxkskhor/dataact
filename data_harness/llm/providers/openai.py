@@ -114,6 +114,24 @@ _STOP_REASON_MAP = {
 }
 
 
+def _cache_read_tokens(usage: object) -> int:
+    """Prompt tokens served from the provider's cache, if it reports any.
+
+    Two incompatible shapes exist across OpenAI-compatible providers, so try
+    both: DeepSeek's flat ``prompt_cache_hit_tokens``, and OpenAI's nested
+    ``prompt_tokens_details.cached_tokens`` (also used by some OpenRouter
+    upstreams). Neither field is guaranteed present - `getattr(None, ..., 0)`
+    falls through the same as a missing attribute, so this stays 0 rather
+    than raising for a provider (or OpenRouter upstream) that reports
+    neither.
+    """
+    hit = getattr(usage, "prompt_cache_hit_tokens", None)
+    if hit is not None:
+        return hit
+    details = getattr(usage, "prompt_tokens_details", None)
+    return getattr(details, "cached_tokens", 0) or 0
+
+
 class _OpenAIHelpers:
     """Shared message-building and response-normalisation logic."""
 
@@ -200,7 +218,13 @@ class _OpenAIHelpers:
             content=self._normalize_message(choice.message),
             input_tokens=getattr(response.usage, "prompt_tokens", 0) or 0,
             output_tokens=getattr(response.usage, "completion_tokens", 0) or 0,
-            cache_read_tokens=0,
+            cache_read_tokens=_cache_read_tokens(response.usage),
+            # No cache_write equivalent: DeepSeek reports prompt_cache_miss_tokens
+            # (tokens NOT found in cache), which answers a different question
+            # than "tokens written to cache" and isn't a documented 1:1 stand-in
+            # for it. OpenAI/OpenRouter report no write-side count either. 0
+            # here means "not reported by this provider", not "no caching
+            # happened" - don't read it as proof caching is off.
             cache_write_tokens=0,
         )
 
