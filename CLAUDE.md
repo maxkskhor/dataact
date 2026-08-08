@@ -4,51 +4,18 @@ This file provides guidance to coding agents working in this repository.
 
 ## What this is
 
-`data-harness` (data + harness) is developing into a full SDK/framework for controlled data-agent workflows.
+`data-harness` (data + harness) is a Python SDK for controlled data-agent
+workflows: the model works through a constrained Python interpreter only, no
+bash tool. Large objects live in `SessionCache` and are exposed to the model
+as named handles with compact snapshots, never as raw blobs in message
+history. It is published on PyPI as `data-harness`; see `CHANGELOG.md` for
+release history and `pyproject.toml` for the current version — don't
+duplicate either here, they drift out of sync with this file immediately.
 
-The repository began as a readable reference implementation of harness design. That teaching role is now being split out: after the full SDK stabilises, create a separate `learn-data-harness` repository that extracts the basic principles without async, production sandboxing, broader SDK ergonomics, or other framework-heavy concerns.
-
-This repository is now the implementation and framework track. It should still make the core boundaries inspectable, but it no longer needs to stay artificially small for tutorial clarity.
-
-The model operates through a constrained Python interpreter only — no bash tool. Large objects live in `SessionCache` and are exposed to the model as named handles with compact snapshots, never as raw blobs in message history.
-
-## Current Direction
-
-Build `data-harness` as the full SDK proper. Keep the foundational design visible, but allow the API surface to grow when it supports real data-agent workflows, debuggability, integration, or reproducibility.
-
-When there is tension between SDK completeness and teaching simplicity, keep the full implementation in `data-harness` and record the distilled teaching version for the future `learn-data-harness` repo. Do not downgrade or avoid useful SDK features merely to keep this repository looking like a small tutorial.
-
-The future `learn-data-harness` repo should be the clean teaching resource: basic ReAct loop, Python tool boundary, handle/snapshot cache, progressive tools, logging, and explicit subagent transfer. It should be created after `data-harness` has enough stable SDK shape that the guide will not immediately go stale.
-
-Do not erase the core harness invariants. `data-harness` can become a framework, but it should remain explicit about execution, context, provider, state, subagent, and logging boundaries.
-
-## Shipped surface (as of v1.3.0)
-
-A snapshot so agents stop re-proposing work that already exists. Confirm against the code before relying on it.
-
-- Layers: `llm` -> `core` -> `data` -> `app`, each importing only the layers below it, enforced statically by `tests/test_layers.py`. There is no compatibility shim for the pre-layering flat import paths (`data_harness.loop`, `data_harness.cache`, ...) — they were removed in v1.0.0. Import from the layered path (`data_harness.core.loop`, `data_harness.data.cache`, ...) or the top-level `data_harness` re-exports in `__init__.py`.
-- Entry points: `ask(df, "...")` one-liner, `Chat` / `SmartFrame`, `Agent.from_dataframe` / `from_csv`, `resolve_adapter` (env-based provider resolution), and a `%%ask` notebook magic (`data_harness/app/notebook.py`, `data_harness/app/pandas.py`). `Agent`/`AsyncAgent` construction takes `model=` directly (`Agent(system=..., model="claude-sonnet-4-6")`) — it resolves an adapter the same way `from_dataframe`/`ask` do. `adapter=` still works and wins over `model` when both are given.
-- Providers: `AnthropicAdapter` for the one genuinely different wire protocol (Anthropic's Messages API); everything else goes through `OpenAIAdapter`, which speaks the OpenAI-compatible chat completions format and resolves `base_url`/`api_key` from a `provider=` name against the `PROVIDERS` registry (`llm/providers/openai.py`) — pre-registered: `openrouter`, `deepseek`, `groq`, `together`, `fireworks`, `cerebras`, `xai`. A new OpenAI-compatible provider is a `register_openai_compatible_provider(OpenAICompatibleProvider(...))` call, not a subclass. `OpenRouterAdapter`/`DeepSeekAdapter` still exist as named convenience classes over the same mechanism, for callers who had them already. All behind `ProviderAdapter` / `AsyncProviderAdapter`. `resolve_adapter` routes `provider/model` ids to OpenRouter and `deepseek-*` to DeepSeek direct.
-- One loop, two drivers: `_HarnessBase._plan` in `core/loop.py` is the single generator; `Harness` runs it inline (sync), `AsyncHarness` awaits it and adds streaming (`run_stream()` / `ask_stream()`, SSE event types in `llm/streaming.py`).
-- Multi-turn: `AgentSession` / `AsyncAgentSession` over a shared cache and history.
-- Session tree: `core/session/` — an append-only tree of typed entries (`MessageEntry`, `TurnEntry`, `CompactionEntry`, ...) with a movable leaf; the conversation is derived by walking root to leaf, never stored separately. `JsonlSessionStore` persists it to disk (one line per entry); `MemorySessionStore` is the default.
-- Hooks: `BeforeTurn` / `BeforeToolCall` / `AfterToolCall` / `AfterTurn` returning `Reminder` / `Block` / `Replace` / `Stop` (`core/hooks.py`). The interpreter approval gate (`on_code`, `code_only`) is built on this.
-- Compaction: `core/compaction.py` — cuts land on turn boundaries, summarised turns stay in the tree so moving the leaf back restores them (opt-in via `compactor=`).
-- Typed errors: `DataHarnessError` taxonomy with stable `code` strings (`core/exceptions.py`); existing `RuntimeError`/`ValueError`/`KeyError` bases kept for backward compatibility.
-- Typed results: `RunResult` (`value` + `charts` + `stopped_by`), `Usage`, `CacheStorageInfo` (`core/result.py`); `run_result()` / `ask_result()`.
-- Structured answers: `answer(value)` interpreter helper → `RunResult.value`.
-- Charts: matplotlib captured as `ChartArtifact` handles (`core/artifacts.py`); image bytes never enter messages or the session tree.
-- State: `SessionCache` with hot/cold disk spilling (Parquet / `.npy` / pickle), an answer slot, chart tracking, and a semantic layer (`put(..., semantics=...)`, `describe`).
-- Tools: `python_interpreter`, `list_variables`, `sql_query` (DuckDB / SQLAlchemy, `tools/sql.py`), opt-in `Planner`, `ConnectorRegistry` progressive disclosure, and isolated `subagent`.
-- Execution: in-process or `execution="subprocess"` (`tools/sandbox.py` + `_sandbox_runner.py`) — isolated process, no network, CPU/time limits; shares the security core via `interpreter.execute_namespace`.
-- Controls: `on_code` approval gate + `code_only` dry-run (in `Harness`); code-replay cache (`exec_cache.py`, `Agent.enable_cache`).
-- File ingestion: `io.py` (`load_dataframe`, `to_handles`).
-- Tool metadata: `ToolAnnotations` on `ToolSpec` (not leaked to providers).
-- Observability: the session tree is the durable run record; `Agent(run_dir=...)` still controls where chart artefacts and subagent working state land. See `examples/inspect_run.py` for `RunResult` inspection and `data_harness/core/observe.py` for turn-latency timing.
-- Packaging: published to PyPI as `data-harness`; optional extras `[openai]`, `[viz]`, `[duckdb]`, `[sql]`, `[notebook]`, `[mcp]`, `[eval]`, `[demo]`, `[all]`; MkDocs site under `docs/`.
-- **Removed in v1.0.0 (breaking, no compat shims kept):** the per-turn JSONL log (`RunResult.run_file`, `Harness(run_dir=...)`, `Agent.last_run_file`); the flat pre-layering import paths (`data_harness/_legacy_paths.py` and everything it aliased); `Harness.register_reminder()` / `.reminders` (use `harness.on(BeforeTurn, hook)` returning a `Reminder`); `AsyncProviderAdapter.stream()` (use `stream_events()`). Do not re-add any of these for backward compatibility — the project has deliberately chosen not to carry legacy surface.
-
-Still genuinely missing / deferred: container/VM/WASM-level sandboxing (the subprocess sandbox is the current isolation; PLAN_v4).
+[`data-harness-ui`](https://github.com/maxkskhor/data-harness-ui) is a
+deployed full-stack reference app built on this SDK (live at
+https://data-harness-ui.vercel.app) — the concrete proof this is a real,
+usable library, not just a design exercise.
 
 ## Motivation
 
@@ -60,55 +27,105 @@ This project is motivated by data workflows where:
 - long-running conversations need disciplined context management
 - debugging and reproducibility matter
 
-The core design ideas remain:
+The core design ideas:
 
-- the ReAct loop should stay small and readable
+- the ReAct loop stays small and readable
 - Python is the controlled execution surface for data work
 - large tool outputs become handles plus snapshots
 - connector schemas are progressively disclosed
 - the system prompt stays prefix-stable
 - reminders and dynamic state are appended to the conversation suffix
 - subagent state transfer is explicit
-- logs reconstruct runs without dumping raw datasets
+- the session tree reconstructs runs without dumping raw datasets
 - architectural invariants are tested directly
 
-## Commands
+## Where things live
 
-```bash
-uv sync
-uv run pytest tests/ -m "not live"                              # full offline suite (~800 tests)
-uv run pytest tests/smoke_tests.py -v -m live                   # live provider smoke tests
-uv run pytest tests/test_loop.py::TestLoopBasic::test_exits_on_end_turn -v
-uv run python examples/quickstart.py                            # minimal Agent (ANTHROPIC_API_KEY)
-uv run python examples/advanced_wiring.py                       # connectors + planner + subagents
-uv run python examples/inspect_run.py                           # RunResult inspection
-uv run mkdocs serve                                             # preview the docs site
-```
+A stable map, not a feature log — check the file itself for current
+behaviour rather than trusting a description here to have kept up.
 
-Live smoke tests run through OpenRouter: they require `OPENROUTER_API_KEY` and
-default to `openai/gpt-4o-mini`; set `DATA_HARNESS_SMOKE_MODEL` to override (e.g.
-`deepseek/deepseek-chat`). The advanced demo requires `ANTHROPIC_API_KEY`. Both
-may cost tokens.
+| Concern | Where |
+|---|---|
+| Provider adapters (Anthropic, OpenAI-compatible registry) | `llm/providers/` |
+| Wire types, streaming events | `llm/types.py`, `llm/streaming.py` |
+| The ReAct loop (single generator, sync + async drivers) | `core/loop.py` |
+| Session tree (append-only typed entries, JSONL persistence) | `core/session/` |
+| Hooks (`BeforeTurn`/`BeforeToolCall`/`AfterToolCall`/`AfterTurn`) | `core/hooks.py` |
+| Compaction | `core/compaction.py` |
+| Typed errors, results (`RunResult`, `Usage`, `CacheStorageInfo`) | `core/exceptions.py`, `core/result.py` |
+| Chart capture | `core/artifacts.py` |
+| `SessionCache` (handles, hot/cold spilling, semantics) | `data/cache.py` |
+| `Harness`/`AsyncHarness` (wires the core loop to a cache) | `data/harness.py` |
+| Built-in tools (`python_interpreter`, `list_variables`, `sql_query`, connectors, subagent) | `data/tools/` |
+| Subprocess sandbox | `data/tools/sandbox.py`, `data/_sandbox_runner.py` |
+| Code-replay cache | `data/exec_cache.py` |
+| File ingestion | `data/io.py` |
+| High-level API (`Agent`/`AsyncAgent`, `AgentSession`) | `app/agent.py` |
+| Zero-config entry points (`ask`, `Chat`, `SmartFrame`, `resolve_adapter`) | `app/quickstart.py` |
+| CLI (`dh`) | `app/cli.py` |
+| Notebook / pandas integration | `app/notebook.py`, `app/pandas.py` |
+| Evaluation harness | `eval/` |
+| Docs site (MkDocs) | `docs/` |
+| Runnable examples | `examples/` |
+
+Layers import strictly downward — `llm` -> `core` -> `data` -> `app`, each
+importing only the layers below it, enforced statically by
+`tests/test_layers.py`. There is no compatibility shim for pre-layering flat
+import paths; import from the layered path (`data_harness.core.loop`,
+`data_harness.data.cache`, ...) or the top-level `data_harness` re-exports in
+`__init__.py`. Do not add a flat-path shim for backward compatibility — this
+project has deliberately chosen not to carry legacy surface.
 
 ## Architecture
 
-The core loop lives in `core/loop.py`: `_HarnessBase._plan` is the single generator, driven by `Harness` (sync) and `AsyncHarness` (async, adds streaming). It owns the message list, dispatches tools, applies hooks, filters visible tools, and records every turn onto the session tree (`core/session/`). `data/harness.py`'s `Harness`/`AsyncHarness` wire the domain-free core loop to a `SessionCache`; that pair is what `Agent` builds and what most callers actually use.
+The core loop lives in `core/loop.py`: `_HarnessBase._plan` is the single
+generator, driven by `Harness` (sync) and `AsyncHarness` (async, adds
+streaming). It owns the message list, dispatches tools, applies hooks,
+filters visible tools, and records every turn onto the session tree
+(`core/session/`). `data/harness.py`'s `Harness`/`AsyncHarness` wire the
+domain-free core loop to a `SessionCache`; that pair is what `Agent` builds
+and what most callers actually use.
 
-`run_result()` / `ask_result()` return a typed `RunResult` (`core/result.py`) carrying text, token `Usage`, and `CacheStorageInfo` — never raw payloads. The model-visible built-in tools are `python_interpreter` and `list_variables` (`data/tools/variables.py`); the planner, connectors, and subagent are opt-in.
+`run_result()` / `ask_result()` return a typed `RunResult` (`core/result.py`)
+carrying text, token `Usage`, and `CacheStorageInfo` — never raw payloads.
+The model-visible built-in tools are `python_interpreter` and
+`list_variables` (`data/tools/variables.py`); the planner, connectors, and
+subagent are opt-in.
 
-The harness never mutates the system prompt. Reminders, nags, final-turn warnings, tool results, and dynamic state belong in the conversation suffix — reminders arrive as `BeforeTurn` hooks returning `Reminder` (`core/hooks.py`).
+The harness never mutates the system prompt. Reminders, nags, final-turn
+warnings, tool results, and dynamic state belong in the conversation suffix —
+reminders arrive as `BeforeTurn` hooks returning `Reminder` (`core/hooks.py`).
 
-`SessionCache` (`data/cache.py`) is shared state between the harness and tools. Tools store large objects by handle name. The model sees snapshots and can operate on handles through the Python interpreter.
+`SessionCache` (`data/cache.py`) is shared state between the harness and
+tools. Tools store large objects by handle name. The model sees snapshots and
+can operate on handles through the Python interpreter.
 
-`python_interpreter` injects cache handles as local variables and exposes `save(name, value)` for explicit persistence. It should not expose the cache object itself.
+`python_interpreter` injects cache handles as local variables and exposes
+`save(name, value)` for explicit persistence. It should not expose the cache
+object itself.
 
-`ToolSpec` (`llm/types.py`) carries the model-visible tool contract plus the already-bound handler callable. The loop dispatches with `handler(**tool_input)` and does not know how dependencies were wired.
+`ToolSpec` (`llm/types.py`) carries the model-visible tool contract plus the
+already-bound handler callable. The loop dispatches with
+`handler(**tool_input)` and does not know how dependencies were wired.
 
-Connectors (`data/tools/connectors.py`) are registered hidden and flipped visible on demand through `load_connectors`. This is the progressive disclosure pattern.
+Connectors (`data/tools/connectors.py`) are registered hidden and flipped
+visible on demand through `load_connectors`. This is the progressive
+disclosure pattern.
 
-Provider adapters (`llm/providers/base.py`) normalize external provider APIs into `NormalizedResponse`. Adapters copy and transform inputs; they must not mutate harness-owned `system`, `messages`, or `tools`.
+Provider adapters (`llm/providers/base.py`) normalize external provider APIs
+into `NormalizedResponse`. Adapters copy and transform inputs; they must not
+mutate harness-owned `system`, `messages`, or `tools`.
 
-Subagents (`data/tools/subagent.py`) get a fresh adapter, fresh message history, and fresh cache per spawn. Parent state crosses the boundary only through explicit `input_handles`, and created outputs return only through `publish_created`.
+Subagents (`data/tools/subagent.py`) get a fresh adapter, fresh message
+history, and fresh cache per spawn. Parent state crosses the boundary only
+through explicit `input_handles`, and created outputs return only through
+`publish_created`.
+
+The session tree (`core/session/`) is an append-only tree of typed entries
+(`MessageEntry`, `TurnEntry`, `CompactionEntry`, ...) with a movable leaf; the
+conversation is derived by walking root to leaf, never stored separately.
+`JsonlSessionStore` persists it to disk (one line per entry, via the public
+`encode_entry`/`FORMAT_VERSION`); `MemorySessionStore` is the default.
 
 ## Key invariants
 
@@ -117,69 +134,114 @@ These are deliberate design constraints. Tests should assert them directly:
 - System prompt is byte-identical across turns.
 - Adapters never mutate harness-owned state.
 - Dynamic reminders are suffix-only.
-- Tool-use messages are followed by matching tool-result messages before the next assistant call.
-- Large values live in `SessionCache`. Messages and the session tree carry only compact snapshots of them.
+- Tool-use messages are followed by matching tool-result messages before the
+  next assistant call.
+- Large values live in `SessionCache`. Messages and the session tree carry
+  only compact snapshots of them.
 - Cache handles are valid Python identifiers.
 - `python_interpreter` uses fresh locals per call.
 - Subagents do not inherit parent cache implicitly.
 - Subagents cannot recursively register or call `subagent`.
-- A session can be replayed from disk into the exact conversation a run had, without reading any cached value's contents out of the log file.
+- A session can be replayed from disk into the exact conversation a run had,
+  without reading any cached value's contents out of the log file.
 
-Tests should assert these invariants directly.
+## Commands
 
-## Writing Context
+```bash
+uv sync
+uv run pytest tests/ -m "not live"                              # full offline suite
+uv run pytest tests/smoke_tests.py -v -m live                   # live provider smoke tests
+uv run python examples/quickstart.py                            # minimal Agent (ANTHROPIC_API_KEY)
+uv run python examples/advanced_wiring.py                       # connectors + planner + subagents
+uv run python examples/inspect_run.py                           # RunResult inspection
+uv run mkdocs serve                                             # preview the docs site
+```
 
-This repo supports writing about harness and SDK engineering. The posts should be clear about the split: `data-harness` is the fuller implementation/framework track, while `learn-data-harness` is the planned teaching guide for the distilled principles.
+Live smoke tests run through OpenRouter: they require `OPENROUTER_API_KEY`
+and default to `openai/gpt-4o-mini`; set `DATA_HARNESS_SMOKE_MODEL` to
+override (e.g. `deepseek/deepseek-chat`). The advanced demo requires
+`ANTHROPIC_API_KEY`. Both may cost tokens.
 
-There are two intended writing tracks:
+## Writing context
 
-1. Architecture: why this harness design exists.
-   Topics: no bash, Python execution, progressive disclosure, handle/snapshot, prefix-stable suffix-mutable context, planner reminders, subagents, list_variables, failure modes.
+This repo supports writing about harness and SDK engineering. Two tracks:
 
-2. Implementation invariants: the technical details that keep the design coherent.
-   Topics: typed content blocks, adapter mutation boundary, tool-use ordering, inline-vs-cache formatting, handle naming, interpreter `save`, suffix-only reminders, explicit subagent state transfer, the session tree, invariant tests.
+1. **Architecture** — why this harness design exists. Topics: no bash, Python
+   execution, progressive disclosure, handle/snapshot, prefix-stable
+   suffix-mutable context, planner reminders, subagents, `list_variables`,
+   failure modes.
+2. **Implementation invariants** — the technical details that keep the
+   design coherent. Topics: typed content blocks, adapter mutation boundary,
+   tool-use ordering, inline-vs-cache formatting, handle naming, interpreter
+   `save`, suffix-only reminders, explicit subagent state transfer, the
+   session tree, invariant tests.
 
-When updating README or docs, avoid claiming `data-harness` is still only a teaching/reference implementation. It is now developing into the full SDK/framework. If a simpler teaching resource is needed, point to the planned `learn-data-harness` split rather than forcing `data-harness` docs to stay beginner-oriented.
+Do not frame `data-harness` as a teaching/reference implementation — it is a
+published SDK with a real downstream app (`data-harness-ui`). If a
+beginner-oriented walkthrough is ever wanted, it belongs in `docs/guide/`
+alongside the existing docs, not as a reason to hold this repo back from
+normal SDK development.
 
-All writing in this repo uses British English spelling (e.g. behaviour, normalise, serialise, catalogue, artefact).
+All writing in this repo uses British English spelling (e.g. behaviour,
+normalise, serialise, catalogue, artefact).
 
-## Implementation Guidance
+## Implementation guidance
 
-Prefer clarity over accidental abstraction, but do not impose the old "small enough for an afternoon" constraint on framework work.
+Prefer clarity over accidental abstraction, but this is framework code, not a
+minimal teaching example — indirection is acceptable when it supports a real
+SDK responsibility: stable public API, provider integration, session/result
+metadata, reproducibility, observability, sandboxing, async execution, or
+safe extensibility. It is not acceptable when it hides state, weakens cache
+boundaries, or makes run reconstruction harder.
 
-Framework-style indirection is acceptable when it supports a real SDK responsibility: stable public API, provider integration, session/result metadata, reproducibility, observability, sandboxing, async execution, or safe extensibility. It is not acceptable when it hides state, weakens cache boundaries, or makes run reconstruction harder.
+Keep the public surface coherent and tested. It may grow beyond the original
+`Agent` convenience layer, but new APIs should map cleanly onto the
+underlying runtime concepts. The high-level class is `Agent`; `Harness`
+remains the central implementation boundary unless a future change
+explicitly replaces it.
 
-For SDK work, keep the public surface coherent and tested. It may grow beyond the original `Agent` convenience layer, but new APIs should map cleanly onto the underlying runtime concepts.
+For connector convenience, store immutable connector definitions on `Agent`
+and build a fresh `ConnectorRegistry` plus fresh `ToolSpec` instances for
+every `run()`. Do not reset visibility on long-lived specs.
 
-The high-level class is still `Agent`, and `Harness` remains the central implementation boundary unless a later plan explicitly replaces it.
+`Agent.run()` is one-shot, matching `Harness.run()`: it starts a fresh
+message history each call. Subagents should remain fresh workers and should
+not inherit planner state or the planner's `BeforeTurn` reminder hook by
+default.
 
-The old strict SDK complexity budget is superseded. Use the current plan files to decide scope:
-
-- `plan/PLAN_v4.md`: runtime roadmap. Async (v0.2.0) and streaming (v0.3.0) have shipped; container-level sandboxing remains deferred.
-- `plan/PLAN_v5.md`: shipped — typed `RunResult`, shared turn records, `ToolAnnotations`, and session inspection.
-- `plan/PLAN_TEACHING.md`: future `learn-data-harness` teaching split after the SDK stabilises.
-
-Note: the `plan/` and `blogs/` files still use the old `dataact` package name in places. The package is `data-harness` (`data_harness`); treat `dataact` references there as historical.
-
-For connector convenience, store immutable connector definitions on `Agent` and build a fresh `ConnectorRegistry` plus fresh `ToolSpec` instances for every `run()`. Do not reset visibility on long-lived specs.
-
-`Agent.run()` is one-shot, matching `Harness.run()`: it starts a fresh message history each call. Subagents should remain fresh workers and should not inherit planner state or the planner's `BeforeTurn` reminder hook by default.
-
-The important boundaries are:
+The important boundaries:
 
 - Execution boundary: Python interpreter, not bash.
 - Context boundary: snapshots, not raw payloads.
-- Provider boundary: adapters copy and transform; they do not mutate harness state.
+- Provider boundary: adapters copy and transform; they do not mutate harness
+  state.
 - State boundary: handles are explicit and valid Python identifiers.
-- Subagent boundary: no implicit parent state; input/output handles are explicit.
-- Logging boundary: reconstruct behavior without dumping full datasets.
+- Subagent boundary: no implicit parent state; input/output handles are
+  explicit.
+- Logging boundary: reconstruct behaviour without dumping full datasets.
 
-## Release checklist
+Still genuinely missing / deferred: container/VM/WASM-level sandboxing (the
+subprocess sandbox — no network, CPU/wall-clock limits — is the current
+isolation level).
 
-Before merging any branch that will trigger a PyPI release:
+## Release process
 
-1. Run `uv run ruff check data_harness tests` — must exit 0.
-2. Run `uv run ruff format --check data_harness tests` — must exit 0.
-3. Run `uv run pytest tests/ -m "not live"` — must exit 0.
+Before tagging a release:
 
-The `release.yml` workflow runs all three steps before `uv build` and `uv publish`. A failure in any step blocks the publish. Fix lint and format issues locally before pushing release tags or triggering the workflow manually.
+1. `uv run ruff check data_harness tests` — must exit 0.
+2. `uv run ruff format --check data_harness tests` — must exit 0.
+3. `uv run pytest tests/ -m "not live"` — must exit 0.
+4. Bump `version` in `pyproject.toml` and add a `CHANGELOG.md` entry
+   describing what changed and why, not just what.
+5. `uv build`, then install the built wheel in a clean venv and smoke-test
+   the specific thing that changed before publishing — a passing test suite
+   against source is not the same guarantee as the actual artifact working.
+6. Commit, push to `main`, tag `vX.Y.Z`, push the tag.
+
+Pushing the tag triggers `release.yml`, which re-runs steps 1-3, then `uv
+build` and `uv publish` — a failure in any step blocks the publish. Fix lint
+and format issues locally rather than pushing to trigger the workflow
+speculatively. Confirm the new version is live at
+`https://pypi.org/pypi/data-harness/json` before relying on it from a
+downstream project (PyPI propagation can lag ~15-30s after the workflow
+reports success).
